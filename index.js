@@ -11,42 +11,61 @@ const LOCK_FILE = path.join(__dirname, 'bot.lock');
 
 // Check if another instance is running
 function checkSingleInstance() {
-    if (fs.existsSync(LOCK_FILE)) {
-        try {
-            const pid = parseInt(fs.readFileSync(LOCK_FILE, 'utf8').trim());
-            
-            if (!isNaN(pid)) {
-                try {
-                    // Check if process is still running (this will throw if process doesn't exist)
-                    process.kill(pid, 0);
-                    console.log('❌ Another bot instance is already running with PID:', pid);
-                    console.log('💡 Please stop the other instance first');
-                    process.exit(1);
-                } catch (e) {
-                    // Process doesn't exist, remove stale lock
-                    console.log('🧹 Removing stale lock file for non-existent PID:', pid);
-                    fs.unlinkSync(LOCK_FILE);
-                }
-            } else {
-                // Invalid PID in lock file, remove it
-                console.log('🧹 Removing corrupted lock file');
-                fs.unlinkSync(LOCK_FILE);
-            }
-        } catch (e) {
-            // Lock file corrupted or unreadable, remove it
-            console.log('🧹 Removing unreadable lock file');
+    const maxRetries = 3;
+    let retries = 0;
+    
+    while (retries < maxRetries) {
+        if (fs.existsSync(LOCK_FILE)) {
             try {
-                fs.unlinkSync(LOCK_FILE);
-            } catch (unlinkError) {
-                console.error('❌ Could not remove lock file:', unlinkError.message);
+                const lockContent = fs.readFileSync(LOCK_FILE, 'utf8').trim();
+                const pid = parseInt(lockContent);
+                
+                if (!isNaN(pid) && pid !== process.pid) {
+                    try {
+                        // Check if process is still running
+                        process.kill(pid, 0);
+                        console.log(`❌ Another bot instance is running with PID: ${pid}`);
+                        console.log('⏳ Waiting 5 seconds before retry...');
+                        
+                        // Wait and retry
+                        require('child_process').execSync('sleep 5');
+                        retries++;
+                        continue;
+                    } catch (e) {
+                        // Process doesn't exist, remove stale lock
+                        console.log(`🧹 Removing stale lock file for non-existent PID: ${pid}`);
+                        fs.unlinkSync(LOCK_FILE);
+                        break;
+                    }
+                } else {
+                    // Invalid PID or same as current process, remove it
+                    console.log('🧹 Removing invalid lock file');
+                    fs.unlinkSync(LOCK_FILE);
+                    break;
+                }
+            } catch (e) {
+                console.log('🧹 Removing corrupted lock file');
+                try {
+                    fs.unlinkSync(LOCK_FILE);
+                } catch (unlinkError) {
+                    console.error('❌ Could not remove lock file:', unlinkError.message);
+                }
+                break;
             }
+        } else {
+            break;
         }
+    }
+    
+    if (retries >= maxRetries) {
+        console.log('❌ Failed to acquire process lock after retries');
+        process.exit(1);
     }
 
     // Create lock file with current PID
     try {
         fs.writeFileSync(LOCK_FILE, process.pid.toString());
-        console.log('🔒 Created process lock with PID:', process.pid);
+        console.log(`🔒 Created process lock with PID: ${process.pid}`);
     } catch (e) {
         console.error('❌ Could not create lock file:', e.message);
         process.exit(1);
@@ -780,58 +799,87 @@ async function approvePayment(chatId, paymentId, lang) {
 
 // Improved bot startup
 async function startBot() {
-    try {
-        console.log('🤖 Starting bot...');
-
-        // Test connection first
-        const me = await bot.getMe();
-        console.log(`✅ Bot connected: @${me.username}`);
-
-        // Clear any existing webhooks
+    const maxStartupRetries = 5;
+    let startupRetries = 0;
+    
+    while (startupRetries < maxStartupRetries) {
         try {
-            await bot.deleteWebHook({ drop_pending_updates: true });
-            console.log('✅ Webhook cleared');
-        } catch (e) {
-            console.log('⚠️ Webhook clear failed:', e.message);
-        }
+            console.log(`🤖 Starting bot... (attempt ${startupRetries + 1}/${maxStartupRetries})`);
 
-        // Wait before starting polling
-        await new Promise(resolve => setTimeout(resolve, 1000));
+            // Test connection first
+            const me = await bot.getMe();
+            console.log(`✅ Bot connected: @${me.username}`);
 
-        // Start polling with proper configuration
-        console.log('🚀 Starting polling...');
-        bot.startPolling({
-            restart: true,
-            polling: {
-                interval: 2000,
-                autoStart: true,
-                params: {
-                    timeout: 30
+            // Stop any existing polling first
+            if (bot.isPolling()) {
+                await bot.stopPolling({ cancel: true });
+                console.log('🛑 Stopped existing polling');
+                await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+
+            // Clear any existing webhooks
+            try {
+                await bot.deleteWebHook({ drop_pending_updates: true });
+                console.log('✅ Webhook cleared');
+            } catch (e) {
+                console.log('⚠️ Webhook clear failed:', e.message);
+            }
+
+            // Wait before starting polling
+            await new Promise(resolve => setTimeout(resolve, 3000));
+
+            // Start polling with proper configuration
+            console.log('🚀 Starting polling...');
+            await bot.startPolling({
+                restart: false,
+                polling: {
+                    interval: 3000,
+                    autoStart: true,
+                    params: {
+                        timeout: 30,
+                        allowed_updates: ['message', 'callback_query']
+                    }
+                }
+            });
+
+            console.log('✅ Bot started successfully!');
+            console.log('🔄 Bot is now running and listening for messages...');
+            
+            // Success, break the retry loop
+            break;
+
+        } catch (error) {
+            console.error(`❌ Error starting bot (attempt ${startupRetries + 1}):`, error.message);
+            
+            if (error.code === 'ETELEGRAM' && error.response?.statusCode === 409) {
+                console.log('🚫 409 Conflict - another instance detected');
+                console.log('⏳ Waiting 10 seconds before retry...');
+                await new Promise(resolve => setTimeout(resolve, 10000));
+                startupRetries++;
+                
+                if (startupRetries >= maxStartupRetries) {
+                    console.log('💀 Max retries reached, terminating...');
+                    cleanupLock();
+                    process.exit(1);
+                }
+            } else {
+                console.log(`🔄 Retrying in ${5 * (startupRetries + 1)} seconds...`);
+                await new Promise(resolve => setTimeout(resolve, 5000 * (startupRetries + 1)));
+                startupRetries++;
+                
+                if (startupRetries >= maxStartupRetries) {
+                    console.log('💀 Max startup retries reached, exiting...');
+                    cleanupLock();
+                    process.exit(1);
                 }
             }
-        });
-
-        console.log('✅ Bot started successfully!');
-        console.log('🔄 Bot is now running and listening for messages...');
-
-        // Keep the process alive
-        setInterval(() => {
-            // Heartbeat to keep process alive
-        }, 30000);
-
-    } catch (error) {
-        console.error('❌ Error starting bot:', error.message);
-        
-        if (error.code === 'ETELEGRAM' && error.response?.statusCode === 409) {
-            console.log('🚫 409 Conflict - another instance is running');
-            console.log('💡 Stopping this instance to prevent conflicts');
-            cleanupLock();
-            process.exit(1);
-        } else {
-            console.log('🔄 Retrying in 10 seconds...');
-            setTimeout(() => startBot(), 10000);
         }
     }
+    
+    // Keep the process alive with heartbeat
+    setInterval(() => {
+        console.log(`💓 Bot heartbeat - ${new Date().toISOString()}`);
+    }, 300000); // Every 5 minutes
 }
 
 // Enhanced error handling
