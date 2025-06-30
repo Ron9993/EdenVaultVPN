@@ -30,7 +30,7 @@ function checkSingleInstance() {
             fs.unlinkSync(LOCK_FILE);
         }
     }
-    
+
     // Create lock file with current PID
     fs.writeFileSync(LOCK_FILE, process.pid.toString());
     console.log('🔒 Created process lock with PID:', process.pid);
@@ -752,7 +752,7 @@ async function approvePayment(chatId, paymentId, lang) {
 async function startBot(retryCount = 0) {
     try {
         console.log(`🤖 Starting bot (attempt ${retryCount + 1})...`);
-        
+
         // Kill any other node processes running this bot
         if (retryCount === 0) {
             try {
@@ -766,7 +766,7 @@ async function startBot(retryCount = 0) {
                 console.log('Process cleanup failed:', e.message);
             }
         }
-        
+
         // Force stop any existing polling
         try {
             console.log('🛑 Stopping existing polling...');
@@ -774,7 +774,7 @@ async function startBot(retryCount = 0) {
         } catch (e) {
             console.log('No existing polling to stop');
         }
-        
+
         // Aggressively clear webhooks and pending updates
         console.log('🧹 Clearing webhooks and pending updates...');
         try {
@@ -783,17 +783,17 @@ async function startBot(retryCount = 0) {
         } catch (webhookError) {
             console.log('⚠️ Webhook clear failed:', webhookError.message);
         }
-        
+
         // Progressive wait time for cleanup
         const waitTime = Math.min(5000 + (retryCount * 3000), 20000);
         console.log(`⏳ Waiting ${waitTime/1000}s for complete cleanup...`);
         await new Promise(resolve => setTimeout(resolve, waitTime));
-        
+
         // Test connection
         console.log('🔍 Testing bot connection...');
         const me = await bot.getMe();
         console.log(`✅ Bot connected: @${me.username}`);
-        
+
         // Start polling with unique settings
         console.log('🚀 Starting bot polling...');
         await bot.startPolling({ 
@@ -804,13 +804,13 @@ async function startBot(retryCount = 0) {
             }
         });
         console.log('✅ Bot polling started successfully!');
-        
+
         // Reset retry count on success
         startBot.retryCount = 0;
-        
+
     } catch (error) {
         console.error('❌ Error starting bot:', error.message);
-        
+
         if (retryCount < 3) { // Reduced max retries
             const nextRetry = 20000 + (retryCount * 10000); // Longer waits
             console.log(`🔄 Retrying in ${nextRetry/1000} seconds... (${retryCount + 1}/3)`);
@@ -828,35 +828,35 @@ let errorCount = 0;
 bot.on('polling_error', (error) => {
     errorCount++;
     console.error(`⚠️ Polling error #${errorCount}:`, error.message);
-    
+
     if (error.code === 'ETELEGRAM' && error.response?.statusCode === 409) {
         console.log('🚫 409 Conflict detected - terminating to prevent conflicts');
-        
+
         try {
             bot.stopPolling({ cancel: true, reason: 'Conflict termination' });
         } catch (stopError) {
             console.log('Stop polling error:', stopError.message);
         }
-        
+
         // For VPS: Exit completely on conflicts to prevent endless loops
         console.log('💀 Terminating process to resolve conflict...');
         cleanupLock();
-        
+
         setTimeout(() => {
             process.exit(1);
         }, 2000);
-        
+
     } else if (error.code === 'ETELEGRAM' && error.response?.statusCode === 429) {
         // Rate limiting
         const retryAfter = error.response?.parameters?.retry_after || 60;
         console.log(`🐌 Rate limited. Waiting ${retryAfter}s...`);
         setTimeout(() => startBot(), retryAfter * 1000);
-        
+
     } else {
         console.log('🔄 Restarting due to other polling error...');
         setTimeout(() => startBot(errorCount), 15000);
     }
-    
+
     // Reset error count after successful periods
     setTimeout(() => {
         if (errorCount > 0) {
@@ -939,7 +939,7 @@ bot.onText(/\/clearwebhook/, async (msg) => {
 bot.onText(/\/debug/, (msg) => {
     const chatId = msg.chat.id;
     const userId = msg.from.id;
-    
+
     console.log('Debug info:', {
         chatId,
         userId,
@@ -947,7 +947,7 @@ bot.onText(/\/debug/, (msg) => {
         isAdmin: userId.toString() === process.env.ADMIN_ID,
         pendingPaymentsCount: pendingPayments.size
     });
-    
+
     if (userId.toString() === process.env.ADMIN_ID) {
         bot.sendMessage(chatId, `🔧 **Admin Debug Info**\n\nYour ID: ${userId}\nAdmin ID: ${process.env.ADMIN_ID}\nMatch: ${userId.toString() === process.env.ADMIN_ID}\nPending Payments: ${pendingPayments.size}`, {
             parse_mode: 'Markdown'
