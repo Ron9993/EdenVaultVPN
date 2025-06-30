@@ -19,7 +19,7 @@ runButton = "Start VPN Bot"
 [[workflows.workflow]]
 name = "Start VPN Bot"
 author = 42627644
-mode = "sequential"
+mode = "parallel"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
