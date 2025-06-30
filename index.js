@@ -68,11 +68,24 @@ function cleanupLock() {
 // Initialize singleton check
 checkSingleInstance();
 
+const http = require('http');
+
 const bot = new TelegramBot(process.env.BOT_TOKEN, { 
     polling: {
         interval: 2000,
         autoStart: false
     }
+});
+
+// Create HTTP server for health checks (required for Autoscale deployments)
+const server = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('VPN Bot is running');
+});
+
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, '0.0.0.0', () => {
+    console.log(`HTTP server listening on port ${PORT}`);
 });
 
 // Bot data storage (in production, use a database)
