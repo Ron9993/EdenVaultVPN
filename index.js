@@ -13,27 +13,44 @@ const LOCK_FILE = path.join(__dirname, 'bot.lock');
 function checkSingleInstance() {
     if (fs.existsSync(LOCK_FILE)) {
         try {
-            const pid = fs.readFileSync(LOCK_FILE, 'utf8');
-            // Check if process is still running
-            try {
-                process.kill(pid, 0); // Check if process exists
-                console.log('❌ Another bot instance is already running with PID:', pid);
-                console.log('💡 Kill it first: kill', pid);
-                process.exit(1);
-            } catch (e) {
-                // Process doesn't exist, remove stale lock
-                console.log('🧹 Removing stale lock file');
+            const pid = parseInt(fs.readFileSync(LOCK_FILE, 'utf8').trim());
+            
+            if (!isNaN(pid)) {
+                try {
+                    // Check if process is still running (this will throw if process doesn't exist)
+                    process.kill(pid, 0);
+                    console.log('❌ Another bot instance is already running with PID:', pid);
+                    console.log('💡 Please stop the other instance first');
+                    process.exit(1);
+                } catch (e) {
+                    // Process doesn't exist, remove stale lock
+                    console.log('🧹 Removing stale lock file for non-existent PID:', pid);
+                    fs.unlinkSync(LOCK_FILE);
+                }
+            } else {
+                // Invalid PID in lock file, remove it
+                console.log('🧹 Removing corrupted lock file');
                 fs.unlinkSync(LOCK_FILE);
             }
         } catch (e) {
-            // Lock file corrupted, remove it
-            fs.unlinkSync(LOCK_FILE);
+            // Lock file corrupted or unreadable, remove it
+            console.log('🧹 Removing unreadable lock file');
+            try {
+                fs.unlinkSync(LOCK_FILE);
+            } catch (unlinkError) {
+                console.error('❌ Could not remove lock file:', unlinkError.message);
+            }
         }
     }
 
     // Create lock file with current PID
-    fs.writeFileSync(LOCK_FILE, process.pid.toString());
-    console.log('🔒 Created process lock with PID:', process.pid);
+    try {
+        fs.writeFileSync(LOCK_FILE, process.pid.toString());
+        console.log('🔒 Created process lock with PID:', process.pid);
+    } catch (e) {
+        console.error('❌ Could not create lock file:', e.message);
+        process.exit(1);
+    }
 }
 
 // Clean up lock file on exit
@@ -748,12 +765,16 @@ async function approvePayment(chatId, paymentId, lang) {
     pendingPayments.delete(paymentId);
 }
 
-// Simplified bot startup
+// Improved bot startup
 async function startBot() {
     try {
         console.log('🤖 Starting bot...');
 
-        // Clear webhooks first
+        // Test connection first
+        const me = await bot.getMe();
+        console.log(`✅ Bot connected: @${me.username}`);
+
+        // Clear any existing webhooks
         try {
             await bot.deleteWebHook({ drop_pending_updates: true });
             console.log('✅ Webhook cleared');
@@ -761,30 +782,37 @@ async function startBot() {
             console.log('⚠️ Webhook clear failed:', e.message);
         }
 
-        // Wait a moment
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        // Wait before starting polling
+        await new Promise(resolve => setTimeout(resolve, 1000));
 
-        // Test connection
-        const me = await bot.getMe();
-        console.log(`✅ Bot connected: @${me.username}`);
-
-        // Start polling
+        // Start polling with proper configuration
         console.log('🚀 Starting polling...');
-        await bot.startPolling({ 
-            restart: false,
+        bot.startPolling({
+            restart: true,
             polling: {
-                interval: 1000,
-                autoStart: true
+                interval: 2000,
+                autoStart: true,
+                params: {
+                    timeout: 30
+                }
             }
         });
+
         console.log('✅ Bot started successfully!');
+        console.log('🔄 Bot is now running and listening for messages...');
+
+        // Keep the process alive
+        setInterval(() => {
+            // Heartbeat to keep process alive
+        }, 30000);
 
     } catch (error) {
         console.error('❌ Error starting bot:', error.message);
         
         if (error.code === 'ETELEGRAM' && error.response?.statusCode === 409) {
             console.log('🚫 409 Conflict - another instance is running');
-            console.log('💡 Please stop other instances and try again');
+            console.log('💡 Stopping this instance to prevent conflicts');
+            cleanupLock();
             process.exit(1);
         } else {
             console.log('🔄 Retrying in 10 seconds...');
@@ -793,27 +821,29 @@ async function startBot() {
     }
 }
 
-// Simplified error handling
+// Enhanced error handling
 bot.on('polling_error', (error) => {
-    console.error('⚠️ Polling error:', error.message);
+    console.error('⚠️ Polling error:', error.code, error.message);
 
-    if (error.code === 'ETELEGRAM' && error.response?.statusCode === 409) {
-        console.log('🚫 409 Conflict - another instance is running');
-        console.log('💀 Terminating to prevent conflicts...');
-        cleanupLock();
-        process.exit(1);
-
-    } else if (error.code === 'ETELEGRAM' && error.response?.statusCode === 429) {
-        const retryAfter = error.response?.parameters?.retry_after || 60;
-        console.log(`🐌 Rate limited. Waiting ${retryAfter}s...`);
-        
+    if (error.code === 'ETELEGRAM') {
+        if (error.response?.statusCode === 409) {
+            console.log('🚫 409 Conflict - Multiple instances detected');
+            console.log('💀 Terminating to prevent conflicts...');
+            cleanupLock();
+            process.exit(1);
+        } else if (error.response?.statusCode === 429) {
+            const retryAfter = error.response?.parameters?.retry_after || 60;
+            console.log(`🐌 Rate limited. Waiting ${retryAfter}s...`);
+        } else {
+            console.log('🔄 Telegram error, but continuing...');
+        }
     } else {
-        console.log('🔄 Continuing despite error...');
+        console.log('🔄 Network error, continuing...');
     }
 });
 
-bot.on('webhook_error', (error) => {
-    console.error('Webhook error:', error);
+bot.on('error', (error) => {
+    console.error('❌ Bot error:', error.message);
 });
 
 // Menu command
@@ -971,31 +1001,46 @@ bot.setMyCommands([
     { command: 'lang', description: 'Change language' }
 ]);
 
-// Shutdown handling
-process.on('SIGINT', () => {
-    console.log('🛑 Shutting down (SIGINT)...');
-    cleanupLock();
-    process.exit(0);
-});
+// Graceful shutdown handling
+async function gracefulShutdown(signal) {
+    console.log(`🛑 Received ${signal}, shutting down gracefully...`);
+    
+    try {
+        // Stop polling
+        if (bot.isPolling()) {
+            await bot.stopPolling();
+            console.log('✅ Bot polling stopped');
+        }
+        
+        // Clean up lock file
+        cleanupLock();
+        console.log('✅ Cleanup completed');
+        
+        process.exit(0);
+    } catch (error) {
+        console.error('❌ Error during shutdown:', error.message);
+        cleanupLock();
+        process.exit(1);
+    }
+}
 
-process.on('SIGTERM', () => {
-    console.log('🛑 Shutting down (SIGTERM)...');
-    cleanupLock();
-    process.exit(0);
-});
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
-process.on('exit', () => {
+process.on('exit', (code) => {
+    console.log(`🔚 Process exiting with code: ${code}`);
     cleanupLock();
 });
 
 process.on('uncaughtException', (error) => {
     console.error('💥 Uncaught Exception:', error.message);
+    console.error(error.stack);
     cleanupLock();
     process.exit(1);
 });
 
-process.on('unhandledRejection', (reason) => {
-    console.error('💥 Unhandled Rejection:', reason);
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('💥 Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
 // Initialize bot
