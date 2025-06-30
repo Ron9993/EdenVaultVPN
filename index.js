@@ -748,121 +748,68 @@ async function approvePayment(chatId, paymentId, lang) {
     pendingPayments.delete(paymentId);
 }
 
-// Bot startup with comprehensive conflict resolution
-async function startBot(retryCount = 0) {
+// Simplified bot startup
+async function startBot() {
     try {
-        console.log(`🤖 Starting bot (attempt ${retryCount + 1})...`);
+        console.log('🤖 Starting bot...');
 
-        // Kill any other node processes running this bot
-        if (retryCount === 0) {
-            try {
-                console.log('🔫 Killing conflicting processes...');
-                const { exec } = require('child_process');
-                exec('pkill -f "node.*index.js" || true', (error) => {
-                    if (error) console.log('No conflicting processes found');
-                });
-                await new Promise(resolve => setTimeout(resolve, 3000));
-            } catch (e) {
-                console.log('Process cleanup failed:', e.message);
-            }
-        }
-
-        // Force stop any existing polling
-        try {
-            console.log('🛑 Stopping existing polling...');
-            await bot.stopPolling({ cancel: true, reason: 'Restart' });
-        } catch (e) {
-            console.log('No existing polling to stop');
-        }
-
-        // Aggressively clear webhooks and pending updates
-        console.log('🧹 Clearing webhooks and pending updates...');
+        // Clear webhooks first
         try {
             await bot.deleteWebHook({ drop_pending_updates: true });
-            console.log('✅ Webhook cleared successfully');
-        } catch (webhookError) {
-            console.log('⚠️ Webhook clear failed:', webhookError.message);
+            console.log('✅ Webhook cleared');
+        } catch (e) {
+            console.log('⚠️ Webhook clear failed:', e.message);
         }
 
-        // Progressive wait time for cleanup
-        const waitTime = Math.min(5000 + (retryCount * 3000), 20000);
-        console.log(`⏳ Waiting ${waitTime/1000}s for complete cleanup...`);
-        await new Promise(resolve => setTimeout(resolve, waitTime));
+        // Wait a moment
+        await new Promise(resolve => setTimeout(resolve, 2000));
 
         // Test connection
-        console.log('🔍 Testing bot connection...');
         const me = await bot.getMe();
         console.log(`✅ Bot connected: @${me.username}`);
 
-        // Start polling with unique settings
-        console.log('🚀 Starting bot polling...');
+        // Start polling
+        console.log('🚀 Starting polling...');
         await bot.startPolling({ 
-            restart: true,
+            restart: false,
             polling: {
-                interval: 3000, // Slower polling
-                autoStart: false
+                interval: 1000,
+                autoStart: true
             }
         });
-        console.log('✅ Bot polling started successfully!');
-
-        // Reset retry count on success
-        startBot.retryCount = 0;
+        console.log('✅ Bot started successfully!');
 
     } catch (error) {
         console.error('❌ Error starting bot:', error.message);
-
-        if (retryCount < 3) { // Reduced max retries
-            const nextRetry = 20000 + (retryCount * 10000); // Longer waits
-            console.log(`🔄 Retrying in ${nextRetry/1000} seconds... (${retryCount + 1}/3)`);
-            setTimeout(() => startBot(retryCount + 1), nextRetry);
-        } else {
-            console.error('🚫 Max retries reached. Exiting...');
-            cleanupLock();
+        
+        if (error.code === 'ETELEGRAM' && error.response?.statusCode === 409) {
+            console.log('🚫 409 Conflict - another instance is running');
+            console.log('💡 Please stop other instances and try again');
             process.exit(1);
+        } else {
+            console.log('🔄 Retrying in 10 seconds...');
+            setTimeout(() => startBot(), 10000);
         }
     }
 }
 
-// Enhanced error handling with process termination on persistent conflicts
-let errorCount = 0;
+// Simplified error handling
 bot.on('polling_error', (error) => {
-    errorCount++;
-    console.error(`⚠️ Polling error #${errorCount}:`, error.message);
+    console.error('⚠️ Polling error:', error.message);
 
     if (error.code === 'ETELEGRAM' && error.response?.statusCode === 409) {
-        console.log('🚫 409 Conflict detected - terminating to prevent conflicts');
-
-        try {
-            bot.stopPolling({ cancel: true, reason: 'Conflict termination' });
-        } catch (stopError) {
-            console.log('Stop polling error:', stopError.message);
-        }
-
-        // For VPS: Exit completely on conflicts to prevent endless loops
-        console.log('💀 Terminating process to resolve conflict...');
+        console.log('🚫 409 Conflict - another instance is running');
+        console.log('💀 Terminating to prevent conflicts...');
         cleanupLock();
-
-        setTimeout(() => {
-            process.exit(1);
-        }, 2000);
+        process.exit(1);
 
     } else if (error.code === 'ETELEGRAM' && error.response?.statusCode === 429) {
-        // Rate limiting
         const retryAfter = error.response?.parameters?.retry_after || 60;
         console.log(`🐌 Rate limited. Waiting ${retryAfter}s...`);
-        setTimeout(() => startBot(), retryAfter * 1000);
-
+        
     } else {
-        console.log('🔄 Restarting due to other polling error...');
-        setTimeout(() => startBot(errorCount), 15000);
+        console.log('🔄 Continuing despite error...');
     }
-
-    // Reset error count after successful periods
-    setTimeout(() => {
-        if (errorCount > 0) {
-            errorCount = Math.max(0, errorCount - 1);
-        }
-    }, 120000); // Reset every 2 minutes
 });
 
 bot.on('webhook_error', (error) => {
@@ -1024,42 +971,31 @@ bot.setMyCommands([
     { command: 'lang', description: 'Change language' }
 ]);
 
-// Comprehensive shutdown handling
+// Shutdown handling
 process.on('SIGINT', () => {
-    console.log('🛑 Bot shutting down gracefully (SIGINT)...');
-    try {
-        bot.stopPolling({ cancel: true, reason: 'SIGINT' });
-    } catch (e) {}
+    console.log('🛑 Shutting down (SIGINT)...');
     cleanupLock();
     process.exit(0);
 });
 
 process.on('SIGTERM', () => {
-    console.log('🛑 Bot terminated gracefully (SIGTERM)...');
-    try {
-        bot.stopPolling({ cancel: true, reason: 'SIGTERM' });
-    } catch (e) {}
+    console.log('🛑 Shutting down (SIGTERM)...');
     cleanupLock();
     process.exit(0);
 });
 
 process.on('exit', () => {
-    console.log('🧹 Process exiting - cleaning up...');
     cleanupLock();
 });
 
 process.on('uncaughtException', (error) => {
-    console.error('💥 Uncaught Exception:', error);
-    try {
-        bot.stopPolling({ cancel: true, reason: 'Exception' });
-    } catch (e) {}
+    console.error('💥 Uncaught Exception:', error.message);
     cleanupLock();
     process.exit(1);
 });
 
-process.on('unhandledRejection', (reason, promise) => {
-    console.error('💥 Unhandled Rejection at:', promise, 'reason:', reason);
-    // Don't exit on unhandled rejections, just log them
+process.on('unhandledRejection', (reason) => {
+    console.error('💥 Unhandled Rejection:', reason);
 });
 
 // Initialize bot
