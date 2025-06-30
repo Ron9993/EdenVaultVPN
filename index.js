@@ -678,54 +678,107 @@ async function approvePayment(chatId, paymentId, lang) {
     pendingPayments.delete(paymentId);
 }
 
-// Bot startup with improved conflict resolution
-async function startBot() {
+// Bot startup with aggressive conflict resolution
+async function startBot(retryCount = 0) {
     try {
-        console.log('🛑 Stopping any existing polling...');
-        await bot.stopPolling();
+        console.log(`🤖 Starting bot (attempt ${retryCount + 1})...`);
         
+        // Force stop any existing polling first
+        try {
+            console.log('🛑 Force stopping any existing polling...');
+            bot.stopPolling({ cancel: true, reason: 'Restart' });
+        } catch (e) {
+            console.log('No existing polling to stop');
+        }
+        
+        // Clear webhooks aggressively
         console.log('🧹 Clearing webhooks...');
-        await bot.deleteWebHook();
+        try {
+            await bot.deleteWebHook({ drop_pending_updates: true });
+            console.log('✅ Webhook cleared successfully');
+        } catch (webhookError) {
+            console.log('⚠️ Webhook clear failed:', webhookError.message);
+        }
         
-        // Wait longer to ensure cleanup
-        console.log('⏳ Waiting for cleanup...');
-        await new Promise(resolve => setTimeout(resolve, 5000));
+        // Wait progressively longer on retries
+        const waitTime = Math.min(10000 + (retryCount * 5000), 30000);
+        console.log(`⏳ Waiting ${waitTime/1000}s for complete cleanup...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+        
+        // Test connection first
+        console.log('🔍 Testing bot connection...');
+        const me = await bot.getMe();
+        console.log(`✅ Bot connected: @${me.username}`);
         
         console.log('🚀 Starting bot polling...');
         await bot.startPolling({ 
             restart: true,
             polling: {
-                interval: 1000,
+                interval: 2000, // Slower polling to avoid conflicts
                 autoStart: false
             }
         });
         console.log('✅ Bot polling started successfully!');
         
+        // Reset retry count on success
+        startBot.retryCount = 0;
+        
     } catch (error) {
         console.error('❌ Error starting bot:', error.message);
-        console.log('🔄 Retrying in 15 seconds...');
-        setTimeout(startBot, 15000);
+        
+        if (retryCount < 5) { // Max 5 retries
+            const nextRetry = Math.min(15000 + (retryCount * 10000), 60000);
+            console.log(`🔄 Retrying in ${nextRetry/1000} seconds... (${retryCount + 1}/5)`);
+            setTimeout(() => startBot(retryCount + 1), nextRetry);
+        } else {
+            console.error('🚫 Max retries reached. Bot startup failed.');
+            console.log('💡 Try running: pkill -f "node index.js" then restart');
+        }
     }
 }
 
-// Improved error handling
+// Improved error handling with exponential backoff
+let errorCount = 0;
 bot.on('polling_error', (error) => {
-    console.error('⚠️ Polling error:', error.message);
+    errorCount++;
+    console.error(`⚠️ Polling error #${errorCount}:`, error.message);
     
     if (error.code === 'ETELEGRAM' && error.response?.statusCode === 409) {
         console.log('🚫 409 Conflict detected - another bot instance is running');
-        console.log('⏸️ Stopping current instance and waiting...');
-        bot.stopPolling();
+        console.log('⏸️ Stopping current instance...');
         
-        // Wait longer before restart to avoid rapid loops
+        try {
+            bot.stopPolling({ cancel: true, reason: 'Conflict resolution' });
+        } catch (stopError) {
+            console.log('Stop polling error:', stopError.message);
+        }
+        
+        // Exponential backoff for conflicts
+        const backoffTime = Math.min(30000 * Math.pow(2, Math.min(errorCount - 1, 3)), 300000); // Max 5 minutes
+        console.log(`⏳ Waiting ${backoffTime/1000}s before restart (backoff)...`);
+        
         setTimeout(() => {
             console.log('🔄 Attempting restart after conflict...');
-            startBot();
-        }, 30000); // Wait 30 seconds instead of 5
+            startBot(errorCount);
+        }, backoffTime);
+        
+    } else if (error.code === 'ETELEGRAM' && error.response?.statusCode === 429) {
+        // Rate limiting
+        const retryAfter = error.response?.parameters?.retry_after || 60;
+        console.log(`🐌 Rate limited. Waiting ${retryAfter}s...`);
+        setTimeout(() => startBot(), retryAfter * 1000);
+        
     } else {
         console.log('🔄 Restarting due to other polling error...');
-        setTimeout(startBot, 10000);
+        setTimeout(() => startBot(errorCount), 10000);
     }
+    
+    // Reset error count after successful periods
+    setTimeout(() => {
+        if (errorCount > 0) {
+            errorCount = Math.max(0, errorCount - 1);
+        }
+    }, 60000); // Reduce error count every minute
 });
 
 bot.on('webhook_error', (error) => {
