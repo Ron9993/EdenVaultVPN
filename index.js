@@ -678,33 +678,53 @@ async function approvePayment(chatId, paymentId, lang) {
     pendingPayments.delete(paymentId);
 }
 
-// Bot startup with conflict resolution
+// Bot startup with improved conflict resolution
 async function startBot() {
     try {
-        // Clear any existing webhooks
-        await bot.deleteWebHook();
-        console.log('🔄 Cleared any existing webhooks...');
+        console.log('🛑 Stopping any existing polling...');
+        await bot.stopPolling();
         
-        // Wait a moment then start polling
-        setTimeout(() => {
-            bot.startPolling({ restart: true });
-            console.log('✅ Bot polling started successfully!');
-        }, 2000);
+        console.log('🧹 Clearing webhooks...');
+        await bot.deleteWebHook();
+        
+        // Wait longer to ensure cleanup
+        console.log('⏳ Waiting for cleanup...');
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        
+        console.log('🚀 Starting bot polling...');
+        await bot.startPolling({ 
+            restart: true,
+            polling: {
+                interval: 1000,
+                autoStart: false
+            }
+        });
+        console.log('✅ Bot polling started successfully!');
         
     } catch (error) {
-        console.error('Error starting bot:', error.message);
-        // Retry after 10 seconds
-        setTimeout(startBot, 10000);
+        console.error('❌ Error starting bot:', error.message);
+        console.log('🔄 Retrying in 15 seconds...');
+        setTimeout(startBot, 15000);
     }
 }
 
-// Error handling
+// Improved error handling
 bot.on('polling_error', (error) => {
-    console.error('Polling error:', error.message);
+    console.error('⚠️ Polling error:', error.message);
+    
     if (error.code === 'ETELEGRAM' && error.response?.statusCode === 409) {
-        console.log('🔄 Conflict detected, restarting bot...');
+        console.log('🚫 409 Conflict detected - another bot instance is running');
+        console.log('⏸️ Stopping current instance and waiting...');
         bot.stopPolling();
-        setTimeout(startBot, 5000);
+        
+        // Wait longer before restart to avoid rapid loops
+        setTimeout(() => {
+            console.log('🔄 Attempting restart after conflict...');
+            startBot();
+        }, 30000); // Wait 30 seconds instead of 5
+    } else {
+        console.log('🔄 Restarting due to other polling error...');
+        setTimeout(startBot, 10000);
     }
 });
 
@@ -763,6 +783,19 @@ bot.onText(/\/support/, (msg) => {
 bot.onText(/\/lang/, (msg) => {
     const chatId = msg.chat.id;
     showLanguageSelection(chatId, true);
+});
+
+// Debug command to clear webhooks (remove after fixing)
+bot.onText(/\/clearwebhook/, async (msg) => {
+    const chatId = msg.chat.id;
+    if (msg.from.id.toString() === process.env.ADMIN_ID) {
+        try {
+            await bot.deleteWebHook();
+            bot.sendMessage(chatId, '✅ Webhook cleared successfully!');
+        } catch (error) {
+            bot.sendMessage(chatId, `❌ Error clearing webhook: ${error.message}`);
+        }
+    }
 });
 
 // Help command
