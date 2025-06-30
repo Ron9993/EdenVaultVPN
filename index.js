@@ -1046,4 +1046,10 @@ process.on('unhandledRejection', (reason, promise) => {
 // Initialize bot
 console.log('🤖 VPN Bot initializing...');
 console.log('📋 Available commands: /start /menu /help /plans /myplan /support /lang');
+
+// Check if running in deployment
+if (process.env.REPLIT_DEPLOYMENT) {
+    console.log('🚀 Running in Replit Deployment environment');
+}
+
 startBot();
