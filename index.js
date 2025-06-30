@@ -570,8 +570,17 @@ bot.on('callback_query', async (callbackQuery) => {
         const paymentId = data.split('_')[1];
         const payment = pendingPayments.get(paymentId);
 
+        console.log('Admin approval attempt:', {
+            paymentId,
+            fromUserId: callbackQuery.from.id,
+            adminId: process.env.ADMIN_ID,
+            paymentExists: !!payment,
+            isAdmin: callbackQuery.from.id.toString() === process.env.ADMIN_ID
+        });
+
         if (payment && callbackQuery.from.id.toString() === process.env.ADMIN_ID) {
             const userLang = userLanguages.get(payment.userId) || 'en';
+            console.log('Processing approval for payment:', paymentId);
             await approvePayment(payment.userId, paymentId, userLang);
 
             bot.editMessageText(`✅ **Payment Approved**\n\nPayment ID: ${paymentId}\nUser: ${payment.userId}\nProcessed successfully!`, {
@@ -579,6 +588,9 @@ bot.on('callback_query', async (callbackQuery) => {
                 message_id: msg.message_id,
                 parse_mode: 'Markdown'
             });
+        } else {
+            console.log('Admin approval denied - not authorized or payment not found');
+            bot.sendMessage(chatId, '❌ Authorization failed or payment not found');
         }
     }
 
@@ -586,6 +598,14 @@ bot.on('callback_query', async (callbackQuery) => {
     if (data.startsWith('reject_')) {
         const paymentId = data.split('_')[1];
         const payment = pendingPayments.get(paymentId);
+
+        console.log('Admin rejection attempt:', {
+            paymentId,
+            fromUserId: callbackQuery.from.id,
+            adminId: process.env.ADMIN_ID,
+            paymentExists: !!payment,
+            isAdmin: callbackQuery.from.id.toString() === process.env.ADMIN_ID
+        });
 
         if (payment && callbackQuery.from.id.toString() === process.env.ADMIN_ID) {
             const userLang = userLanguages.get(payment.userId) || 'en';
@@ -600,6 +620,9 @@ bot.on('callback_query', async (callbackQuery) => {
             });
 
             pendingPayments.delete(paymentId);
+        } else {
+            console.log('Admin rejection denied - not authorized or payment not found');
+            bot.sendMessage(chatId, '❌ Authorization failed or payment not found');
         }
     }
 
@@ -848,6 +871,28 @@ bot.onText(/\/clearwebhook/, async (msg) => {
         } catch (error) {
             bot.sendMessage(chatId, `❌ Error clearing webhook: ${error.message}`);
         }
+    }
+});
+
+// Debug command for admin verification
+bot.onText(/\/debug/, (msg) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+    
+    console.log('Debug info:', {
+        chatId,
+        userId,
+        adminId: process.env.ADMIN_ID,
+        isAdmin: userId.toString() === process.env.ADMIN_ID,
+        pendingPaymentsCount: pendingPayments.size
+    });
+    
+    if (userId.toString() === process.env.ADMIN_ID) {
+        bot.sendMessage(chatId, `🔧 **Admin Debug Info**\n\nYour ID: ${userId}\nAdmin ID: ${process.env.ADMIN_ID}\nMatch: ${userId.toString() === process.env.ADMIN_ID}\nPending Payments: ${pendingPayments.size}`, {
+            parse_mode: 'Markdown'
+        });
+    } else {
+        bot.sendMessage(chatId, 'Not authorized for debug info');
     }
 });
 
