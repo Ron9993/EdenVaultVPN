@@ -61,8 +61,6 @@ Add:
 ```
 BOT_TOKEN=your_actual_bot_token
 ADMIN_ID=your_telegram_user_id
-KPAY_NUMBER=your_kpay_number
-WAVE_NUMBER=your_wave_number
 PORT=3000
 ```
 

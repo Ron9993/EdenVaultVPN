@@ -417,7 +417,7 @@ function showPaymentDetails(chatId, method, paymentId, lang = 'en') {
         ]
     };
 
-    const phoneNumber = method === 'kpay' ? process.env.KPAY_NUMBER : process.env.WAVE_NUMBER;
+    const phoneNumber = method === 'kpay' ? '09123456789' : '09987654321';
     const methodName = method === 'kpay' ? 'KPay' : 'Wave';
 
     const paymentDetails = `💳 **${methodName} Payment**\n\n📞 **Phone**: ${phoneNumber}\n💰 **Amount**: ${plan.price} MMK\n📦 **Plan**: ${plan.name}\n🆔 **Reference**: ${paymentId.slice(-8)}\n\n${text.paymentProof}`;
