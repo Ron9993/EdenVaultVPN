@@ -259,15 +259,21 @@ function showPaymentDetails(chatId, server, planKey) {
     pendingProofs.set(uid, { id: chatId, server, planKey, timestamp: new Date() });
 
     let serverText = '';
+    let dataDetails = '';
+    
     if (server === 'us') {
         serverText = '🇺🇸 *US Server* - Fast speeds for Americas';
+        dataDetails = `💾 *Data:* ${plan.gb}GB (US Server only)`;
     } else if (server === 'sg') {
         serverText = '🇸🇬 *SG Server* - Fast speeds for Asia-Pacific';
+        dataDetails = `💾 *Data:* ${plan.gb}GB (SG Server only)`;
     } else {
-        serverText = '🌐 *Both Servers* - Best of both worlds (data split 50/50)';
+        const halfData = plan.gb / 2;
+        serverText = '🌐 *Both Servers* - Best of both worlds';
+        dataDetails = `💾 *Data Distribution:*\n   • 🇺🇸 US Server: ${halfData}GB\n   • 🇸🇬 SG Server: ${halfData}GB\n   • *Total:* ${plan.gb}GB`;
     }
 
-    const paymentText = `💳 *Payment Required*\n\n${serverText}\n📦 *Plan:* ${plan.name}\n💾 *Data:* ${plan.gb}GB\n💰 *Amount:* ${plan.price} MMK\n\n📱 *Pay via KPay:* 09123456789\n🆔 *Reference:* ${uid.slice(-8)}\n\nAfter payment, upload your screenshot:`;
+    const paymentText = `💳 *Payment Required*\n\n${serverText}\n📦 *Plan:* ${plan.name}\n${dataDetails}\n💰 *Amount:* ${plan.price} MMK\n\n📱 *Pay via KPay:* 09123456789\n🆔 *Reference:* ${uid.slice(-8)}\n\nAfter payment, upload your screenshot:`;
     
     const keyboard = {
         inline_keyboard: [
