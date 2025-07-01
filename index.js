@@ -237,11 +237,12 @@ function showPlanDetails(chatId, planKey, lang = 'en') {
     const text = texts[lang];
     const planText = `📦 *${plan.name}* ${text.selected}\n💾 *${text.data}:* ${plan.gb}GB\n💰 *${text.price}:* ${plan.price} MMK\n📅 *${text.duration}:* ${plan.days} ${text.days}\n\n🌍 ${text.choose}`;
     
+    const halfData = plan.gb / 2;
     const keyboard = {
         inline_keyboard: [
-            [{ text: text.us, callback_data: `srv_us_${planKey}_${lang}` }],
-            [{ text: text.sg, callback_data: `srv_sg_${planKey}_${lang}` }],
-            [{ text: text.both, callback_data: `srv_both_${planKey}_${lang}` }],
+            [{ text: `🇺🇸 US Server (${plan.gb}GB)`, callback_data: `srv_us_${planKey}_${lang}` }],
+            [{ text: `🇸🇬 SG Server (${plan.gb}GB)`, callback_data: `srv_sg_${planKey}_${lang}` }],
+            [{ text: `🌐 Combined ${halfData}GB/US + ${halfData}GB/SG`, callback_data: `srv_both_${planKey}_${lang}` }],
             [{ text: text.back, callback_data: `back_plans_${lang}` }]
         ]
     };
