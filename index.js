@@ -242,7 +242,7 @@ function showPlanDetails(chatId, planKey, lang = 'en') {
         inline_keyboard: [
             [{ text: `🇺🇸 US Server (${plan.gb}GB)`, callback_data: `srv_us_${planKey}_${lang}` }],
             [{ text: `🇸🇬 SG Server (${plan.gb}GB)`, callback_data: `srv_sg_${planKey}_${lang}` }],
-            [{ text: `🌐 Combined ${halfData}GB/US + ${halfData}GB/SG`, callback_data: `srv_both_${planKey}_${lang}` }],
+            [{ text: `🌐 Both Servers (${halfData}GB each)`, callback_data: `srv_both_${planKey}_${lang}` }],
             [{ text: text.back, callback_data: `back_plans_${lang}` }]
         ]
     };
