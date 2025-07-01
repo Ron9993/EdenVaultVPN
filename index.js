@@ -131,7 +131,7 @@ function showPlansMenu(chatId, lang = 'en') {
     };
 
     const text = texts[lang];
-    const planText = `${text.title}\n\n🟢 **Mini Vault**\n• 100GB • 30 Days - 3000 MMK\n• 100GB • 90 Days - 7000 MMK\n\n🔵 **Power Vault**\n• 300GB • 30 Days - 6000 MMK\n• 300GB • 90 Days - 13000 MMK\n\n🔴 **Ultra Vault (Most Popular)**\n• 500GB • 30 Days - 8000 MMK\n• 500GB • 90 Days - 17000 MMK`;
+    const planText = `${text.title}\n\n🟢 **Mini Vault**\n• 100GB • 30 Days - 3000 MMK *(Perfect for social media, messaging, light browsing)*\n• 100GB • 90 Days - 7000 MMK\n\n🔵 **Power Vault**\n• 300GB • 30 Days - 6000 MMK\n• 300GB • 90 Days - 13000 MMK\n\n🔴 **Ultra Vault (Most Popular)**\n• 500GB • 30 Days - 8000 MMK\n• 500GB • 90 Days - 17000 MMK`;
     
     const keyboard = {
         inline_keyboard: [
