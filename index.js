@@ -278,12 +278,12 @@ bot.on('callback_query', async (query) => {
 
 // Additional commands
 bot.onText(/\/help/, (msg) => {
-    const helpText = `🔐 **EdenVaultVPN Help**\n\n📱 **Commands:**\n/start - Start the bot\n/help - Show this help\n/support - Contact support\n\n📋 **How to use:**\n1️⃣ Choose a plan\n2️⃣ Select server location\n3️⃣ Pay via KPay\n4️⃣ Upload payment proof\n5️⃣ Get your VPN keys\n\n💬 **Need help?** Contact @edenvault_88`;
+    const helpText = `🔐 *EdenVaultVPN Help*\n\n📱 *Commands:*\n/start - Start the bot\n/help - Show this help\n/support - Contact support\n\n📋 *How to use:*\n1️⃣ Choose a plan\n2️⃣ Select server location\n3️⃣ Pay via KPay\n4️⃣ Upload payment proof\n5️⃣ Get your VPN keys\n\n💬 *Need help?* Contact @edenvault\\_88`;
     bot.sendMessage(msg.chat.id, helpText, { parse_mode: 'Markdown' });
 });
 
 bot.onText(/\/support/, (msg) => {
-    bot.sendMessage(msg.chat.id, '💬 **Support Contact**\n\nTelegram: @edenvault_88\nEmail: edenvault888@gmail.com\nResponse time: 24 hours', { parse_mode: 'Markdown' });
+    bot.sendMessage(msg.chat.id, '💬 *Support Contact*\n\nTelegram: @edenvault\\_88\nEmail: edenvault888@gmail.com\nResponse time: 24 hours', { parse_mode: 'Markdown' });
 });
 
 // Error handling
