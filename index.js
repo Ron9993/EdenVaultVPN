@@ -741,7 +741,7 @@ bot.on('callback_query', async (callbackQuery) => {
     }
 
     if (data === 'support') {
-        bot.sendMessage(chatId, '💬 **Support Contact**\n\nTelegram: @yoursupport\nEmail: support@yourvpn.com\nResponse time: 24 hours', { parse_mode: 'Markdown' });
+        bot.sendMessage(chatId, '💬 **Support Contact**\n\nTelegram: @edenvault_88\nEmail: edenvault888@gmail.com\nResponse time: 24 hours', { parse_mode: 'Markdown' });
     }
 
 
@@ -951,7 +951,7 @@ bot.onText(/\/myplan/, (msg) => {
 // Support command
 bot.onText(/\/support/, (msg) => {
     const chatId = msg.chat.id;
-    bot.sendMessage(chatId, '💬 **Support Contact**\n\nTelegram: @yoursupport\nEmail: support@yourvpn.com\nResponse time: 24 hours', { parse_mode: 'Markdown' });
+    bot.sendMessage(chatId, '💬 **Support Contact**\n\nTelegram: @edenvault_88\nEmail: edenvault888@gmail.com\nResponse time: 24 hours', { parse_mode: 'Markdown' });
 });
 
 // Language command
