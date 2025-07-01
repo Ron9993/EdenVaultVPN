@@ -837,14 +837,21 @@ async function startBot() {
     try {
         console.log('🤖 Starting VPN Bot...');
 
+        // Stop any existing polling first
+        if (bot.isPolling()) {
+            console.log('🛑 Stopping existing polling...');
+            await bot.stopPolling();
+            await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+        }
+
         const me = await bot.getMe();
         console.log(`✅ Bot connected: @${me.username}`);
 
         await bot.startPolling({
             polling: {
-                interval: 1000,
+                interval: 2000,
                 params: {
-                    timeout: 10
+                    timeout: 30
                 },
                 allowed_updates: ['message', 'callback_query']
             }
@@ -855,7 +862,14 @@ async function startBot() {
 
     } catch (error) {
         console.error('❌ Error starting bot:', error.message);
-        process.exit(1);
+        if (error.message.includes('409')) {
+            console.log('🔄 Retrying in 5 seconds...');
+            setTimeout(() => {
+                process.exit(1);
+            }, 5000);
+        } else {
+            process.exit(1);
+        }
     }
 }
 
