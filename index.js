@@ -253,11 +253,72 @@ function showPlanDetails(chatId, planKey, lang = 'en') {
     });
 }
 
-// Show payment details
-function showPaymentDetails(chatId, server, planKey) {
+// Show payment method selection
+function showPaymentMethods(chatId, server, planKey, lang = 'en') {
+    const plan = plans[planKey];
+    
+    let serverText = '';
+    let dataDetails = '';
+    
+    if (server === 'us') {
+        serverText = '🇺🇸 *US Server* - Fast speeds for Americas';
+        dataDetails = `💾 *Data:* ${plan.gb}GB (US Server only)`;
+    } else if (server === 'sg') {
+        serverText = '🇸🇬 *SG Server* - Fast speeds for Asia-Pacific';
+        dataDetails = `💾 *Data:* ${plan.gb}GB (SG Server only)`;
+    } else {
+        const halfData = plan.gb / 2;
+        serverText = '🌐 *Both Servers* - Best of both worlds';
+        dataDetails = `💾 *Data Distribution:*\n   • 🇺🇸 US Server: ${halfData}GB\n   • 🇸🇬 SG Server: ${halfData}GB\n   • *Total:* ${plan.gb}GB`;
+    }
+
+    const texts = {
+        en: {
+            title: '💳 *Choose Payment Method*',
+            back: '🔙 Back to Servers'
+        },
+        cn: {
+            title: '💳 *选择支付方式*',
+            back: '🔙 返回服务器'
+        },
+        mm: {
+            title: '💳 *ငွေပေးချေမှုနည်းလမ်းရွေးချယ်ပါ*',
+            back: '🔙 ဆာဗာများသို့ပြန်'
+        }
+    };
+
+    const text = texts[lang];
+    const paymentText = `${text.title}\n\n${serverText}\n📦 *Plan:* ${plan.name}\n${dataDetails}\n💰 *Amount:* ${plan.price} MMK\n\nSelect your preferred payment method:`;
+    
+    const keyboard = {
+        inline_keyboard: [
+            [
+                { text: '📱 KPay', callback_data: `pay_kpay_${server}_${planKey}_${lang}` },
+                { text: '🌊 Wave Pay', callback_data: `pay_wave_${server}_${planKey}_${lang}` }
+            ],
+            [
+                { text: '🏦 CB Pay', callback_data: `pay_cb_${server}_${planKey}_${lang}` },
+                { text: '💰 AYA Pay', callback_data: `pay_aya_${server}_${planKey}_${lang}` }
+            ],
+            [
+                { text: '🔵 True Money', callback_data: `pay_true_${server}_${planKey}_${lang}` },
+                { text: '📞 MPT Pay', callback_data: `pay_mpt_${server}_${planKey}_${lang}` }
+            ],
+            [{ text: text.back, callback_data: `plan_${planKey}_${lang}` }]
+        ]
+    };
+
+    bot.sendMessage(chatId, paymentText, {
+        reply_markup: keyboard,
+        parse_mode: 'Markdown'
+    });
+}
+
+// Show payment details for selected method
+function showPaymentDetails(chatId, paymentMethod, server, planKey, lang = 'en') {
     const plan = plans[planKey];
     const uid = uuidv4();
-    pendingProofs.set(uid, { id: chatId, server, planKey, timestamp: new Date() });
+    pendingProofs.set(uid, { id: chatId, server, planKey, paymentMethod, timestamp: new Date() });
 
     let serverText = '';
     let dataDetails = '';
@@ -274,12 +335,23 @@ function showPaymentDetails(chatId, server, planKey) {
         dataDetails = `💾 *Data Distribution:*\n   • 🇺🇸 US Server: ${halfData}GB\n   • 🇸🇬 SG Server: ${halfData}GB\n   • *Total:* ${plan.gb}GB`;
     }
 
-    const paymentText = `💳 *Payment Required*\n\n${serverText}\n📦 *Plan:* ${plan.name}\n${dataDetails}\n💰 *Amount:* ${plan.price} MMK\n\n📱 *Pay via KPay:* 09123456789\n🆔 *Reference:* ${uid.slice(-8)}\n\nAfter payment, upload your screenshot:`;
+    // Payment method details
+    const paymentMethods = {
+        kpay: { name: '📱 KPay', number: '09123456789' },
+        wave: { name: '🌊 Wave Pay', number: '09876543210' },
+        cb: { name: '🏦 CB Pay', number: '09555666777' },
+        aya: { name: '💰 AYA Pay', number: '09444555666' },
+        true: { name: '🔵 True Money', number: '09777888999' },
+        mpt: { name: '📞 MPT Pay', number: '09333444555' }
+    };
+
+    const selectedMethod = paymentMethods[paymentMethod];
+    const paymentText = `💳 *Payment Required*\n\n${serverText}\n📦 *Plan:* ${plan.name}\n${dataDetails}\n💰 *Amount:* ${plan.price} MMK\n\n${selectedMethod.name}\n📱 *Number:* ${selectedMethod.number}\n🆔 *Reference:* ${uid.slice(-8)}\n\nAfter payment, upload your screenshot:`;
     
     const keyboard = {
         inline_keyboard: [
             [{ text: '📤 Upload Payment Proof', callback_data: `proof_${uid}` }],
-            [{ text: '🔙 Back to Servers', callback_data: `plan_${planKey}` }]
+            [{ text: '🔙 Back to Payment Methods', callback_data: `srv_${server}_${planKey}_${lang}` }]
         ]
     };
 
@@ -331,7 +403,17 @@ async function processPaymentProof(photoMsg, proof, uid) {
         serverInfo = `🌐 Both Servers - ${plan.gb/2}GB each`;
     }
 
-    const adminText = `🔔 *New Payment for Review*\n\n👤 *User:* ${photoMsg.from.first_name} (@${photoMsg.from.username || 'No username'})\n🆔 *User ID:* ${chatId}\n📦 *Plan:* ${plan.name}\n🌍 *Server:* ${serverInfo}\n💰 *Amount:* ${plan.price} MMK\n🔑 *Payment ID:* ${uid}\n📅 *Time:* ${new Date().toLocaleString()}\n\nReview and approve/reject:`;
+    const paymentMethods = {
+        kpay: '📱 KPay',
+        wave: '🌊 Wave Pay',
+        cb: '🏦 CB Pay',
+        aya: '💰 AYA Pay',
+        true: '🔵 True Money',
+        mpt: '📞 MPT Pay'
+    };
+
+    const methodName = paymentMethods[proof.paymentMethod] || 'Unknown';
+    const adminText = `🔔 *New Payment for Review*\n\n👤 *User:* ${photoMsg.from.first_name} (@${photoMsg.from.username || 'No username'})\n🆔 *User ID:* ${chatId}\n📦 *Plan:* ${plan.name}\n🌍 *Server:* ${serverInfo}\n💳 *Payment Method:* ${methodName}\n💰 *Amount:* ${plan.price} MMK\n🔑 *Payment ID:* ${uid}\n📅 *Time:* ${new Date().toLocaleString()}\n\nReview and approve/reject:`;
 
     // Forward the photo to admin
     bot.forwardMessage(ADMIN_ID, chatId, photoMsg.message_id);
@@ -532,7 +614,16 @@ bot.on('callback_query', async (query) => {
         const server = parts[1];
         const planKey = `${parts[2]}_${parts[3]}`;
         const lang = parts[4] || 'en';
-        showPaymentDetails(chatId, server, planKey, lang);
+        showPaymentMethods(chatId, server, planKey, lang);
+    }
+
+    if (data.startsWith('pay_')) {
+        const parts = data.split('_');
+        const paymentMethod = parts[1];
+        const server = parts[2];
+        const planKey = `${parts[3]}_${parts[4]}`;
+        const lang = parts[5] || 'en';
+        showPaymentDetails(chatId, paymentMethod, server, planKey, lang);
     }
 
     if (data.startsWith('proof_')) {
