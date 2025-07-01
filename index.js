@@ -540,7 +540,8 @@ function showHelp(chatId) {
 
 // Show support information
 function showSupport(chatId) {
-    const supportText = '💬 *Support Contact*\n\nTelegram: @edenvault\\_88\nEmail: edenvault888@gmail.com\nResponse time: 24 hours';
+    const supportText = `💬 *EdenVaultVPN Support*\n\n🔧 *Need Help?*\n\n📱 **Telegram:** @edenvault\\_88\n📧 **Email:** edenvault888@gmail.com\n⏰ **Response Time:** Usually within 24 hours\n\n❓ *Common Issues:*\n• Payment problems - Send screenshot\n• Connection issues - Check your internet\n• App setup help - We'll guide you!\n• Refund requests - Valid within 7 days\n\n🚀 *Quick Commands:*\n/help - Full command guide\n/plans - View packages\n/status - Check your plan\n/servers - Server locations\n\n📞 We're here to help 24/7!`;
+    
     bot.sendMessage(chatId, supportText, { parse_mode: 'Markdown' });
 }
 
@@ -551,9 +552,40 @@ bot.onText(/\/start/, (msg) => {
     showLanguageSelection(msg.chat.id);
 });
 
-// Help command
+// Help command - comprehensive guide
 bot.onText(/\/help/, (msg) => {
-    showHelp(msg.chat.id);
+    const helpText = `🔐 *EdenVaultVPN - Command Guide*\n\n📱 *Available Commands:*\n\n/start - Start the bot and select language\n/menu - Open main menu\n/plans - View all VPN plans\n/help - Show this help guide\n/support - Contact support\n/status - Check your plan status\n/pricing - View pricing details\n/servers - Server locations info\n\n📋 *Quick Start Guide:*\n1️⃣ Use /plans to see available packages\n2️⃣ Choose your preferred plan\n3️⃣ Select server location (US/SG/Both)\n4️⃣ Choose payment method\n5️⃣ Pay and upload screenshot\n6️⃣ Get your VPN keys instantly!\n\n🌍 *Server Locations:*\n🇺🇸 US Server - Americas & Europe\n🇸🇬 SG Server - Asia Pacific\n🌐 Both Servers - Global coverage\n\n💬 *Need help?* Use /support or contact @edenvault\\_88`;
+    
+    bot.sendMessage(msg.chat.id, helpText, { parse_mode: 'Markdown' });
+});
+
+// Menu command - direct access to main menu
+bot.onText(/\/menu/, (msg) => {
+    showMainMenu(msg.chat.id, 'en');
+});
+
+// Plans command - direct access to plans
+bot.onText(/\/plans/, (msg) => {
+    showPlansMenu(msg.chat.id, 'en');
+});
+
+// Status command - check current plan
+bot.onText(/\/status/, (msg) => {
+    showMyPlan(msg.chat.id, 'en');
+});
+
+// Pricing command - detailed pricing info
+bot.onText(/\/pricing/, (msg) => {
+    const pricingText = `💰 *EdenVaultVPN Pricing*\n\n🟢 **Mini Vault** - Perfect for light users\n• 100GB • 30 Days - **3,000 MMK**\n• 100GB • 90 Days - **7,000 MMK**\n\n🔵 **Power Vault** - Great for regular users\n• 300GB • 30 Days - **6,000 MMK**\n• 300GB • 90 Days - **13,000 MMK**\n\n🔴 **Ultra Vault** - Best value! *(Most Popular)*\n• 500GB • 30 Days - **8,000 MMK**\n• 500GB • 90 Days - **17,000 MMK**\n\n💳 *Payment Methods:*\n📱 KPay • 🌊 Wave Pay • 🏦 CB Pay\n💰 AYA Pay • 🔵 True Money • 📞 MPT Pay\n\n🌍 *Server Options:*\n🇺🇸 US Server (Full data)\n🇸🇬 SG Server (Full data)\n🌐 Both Servers (Split 50/50)\n\n📱 Use /plans to purchase now!`;
+    
+    bot.sendMessage(msg.chat.id, pricingText, { parse_mode: 'Markdown' });
+});
+
+// Servers command - server information
+bot.onText(/\/servers/, (msg) => {
+    const serversText = `🌍 *Server Locations & Features*\n\n🇺🇸 **US Server**\n• Location: United States\n• Best for: Americas, Europe\n• Speed: Ultra-fast\n• Streaming: Netflix, Hulu, HBO\n\n🇸🇬 **SG Server**\n• Location: Singapore\n• Best for: Asia Pacific\n• Speed: Lightning fast\n• Streaming: Netflix, Disney+\n\n🌐 **Both Servers (Recommended)**\n• Get access to both locations\n• Data split equally (e.g., 250GB each for 500GB plan)\n• Maximum flexibility\n• Best global coverage\n\n⚡ *All servers offer:*\n✅ 24/7 uptime\n✅ Military-grade encryption\n✅ No logs policy\n✅ Unlimited device connections\n✅ High-speed streaming\n\n📱 Ready to start? Use /plans`;
+    
+    bot.sendMessage(msg.chat.id, serversText, { parse_mode: 'Markdown' });
 });
 
 // Support command
