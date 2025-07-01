@@ -36,9 +36,12 @@ server.listen(PORT, '0.0.0.0', () => {
 
 // === Plans ===
 const plans = {
-    mini: { name: 'Mini Vault', gb: 100, price: 3000, days: 30 },
-    power: { name: 'Power Vault', gb: 300, price: 6000, days: 30 },
-    ultra: { name: 'Ultra Vault', gb: 500, price: 8000, days: 30 }
+    mini_30: { name: 'Mini Vault', gb: 100, price: 3000, days: 30 },
+    mini_90: { name: 'Mini Vault', gb: 100, price: 7000, days: 90 },
+    power_30: { name: 'Power Vault', gb: 300, price: 6000, days: 30 },
+    power_90: { name: 'Power Vault', gb: 300, price: 13000, days: 90 },
+    ultra_30: { name: 'Ultra Vault', gb: 500, price: 8000, days: 30 },
+    ultra_90: { name: 'Ultra Vault', gb: 500, price: 17000, days: 90 }
 };
 
 // === Users ===
@@ -114,39 +117,41 @@ function showMainMenu(chatId, lang = 'en') {
 function showPlansMenu(chatId, lang = 'en') {
     const texts = {
         en: {
-            title: '📦 *Choose Your VPN Plan*\n\nSelect the perfect plan for your needs:',
-            mini: '🟢 Mini (100GB) - 3000 MMK',
-            power: '🔵 Power (300GB) - 6000 MMK',
-            ultra: '🔴 Ultra (500GB) - 8000 MMK',
+            title: '🔐 📦 *Select your plan:*',
             back: '🔙 Back to Menu'
         },
         cn: {
-            title: '📦 *选择您的VPN套餐*\n\n选择最适合您需求的套餐：',
-            mini: '🟢 迷你套餐 (100GB) - 3000 MMK',
-            power: '🔵 强力套餐 (300GB) - 6000 MMK',
-            ultra: '🔴 超级套餐 (500GB) - 8000 MMK',
+            title: '🔐 📦 *选择您的套餐:*',
             back: '🔙 返回菜单'
         },
         mm: {
-            title: '📦 *သင့် VPN အစီအစဥ်ကို ရွေးချယ်ပါ*\n\nသင့်လိုအပ်ချက်အတွက် အကောင်းဆုံးအစီအစဥ်ကို ရွေးချယ်ပါ：',
-            mini: '🟢 Mini (100GB) - 3000 MMK',
-            power: '🔵 Power (300GB) - 6000 MMK',
-            ultra: '🔴 Ultra (500GB) - 8000 MMK',
+            title: '🔐 📦 *သင့်အစီအစဥ်ကို ရွေးချယ်ပါ:*',
             back: '🔙 မီနူးသို့ပြန်'
         }
     };
 
     const text = texts[lang];
+    const planText = `${text.title}\n\n🟢 **Mini Vault**\n• 100GB • 30 Days - 3000 MMK\n• 100GB • 90 Days - 7000 MMK\n\n🔵 **Power Vault**\n• 300GB • 30 Days - 6000 MMK\n• 300GB • 90 Days - 13000 MMK\n\n🔴 **Ultra Vault (Most Popular)**\n• 500GB • 30 Days - 8000 MMK\n• 500GB • 90 Days - 17000 MMK`;
+    
     const keyboard = {
         inline_keyboard: [
-            [{ text: text.mini, callback_data: `plan_mini_${lang}` }],
-            [{ text: text.power, callback_data: `plan_power_${lang}` }],
-            [{ text: text.ultra, callback_data: `plan_ultra_${lang}` }],
+            [
+                { text: '🟢 Mini 30D', callback_data: `plan_mini_30_${lang}` },
+                { text: '🟢 Mini 90D', callback_data: `plan_mini_90_${lang}` }
+            ],
+            [
+                { text: '🔵 Power 30D', callback_data: `plan_power_30_${lang}` },
+                { text: '🔵 Power 90D', callback_data: `plan_power_90_${lang}` }
+            ],
+            [
+                { text: '🔴 Ultra 30D', callback_data: `plan_ultra_30_${lang}` },
+                { text: '🔴 Ultra 90D', callback_data: `plan_ultra_90_${lang}` }
+            ],
             [{ text: text.back, callback_data: `back_main_${lang}` }]
         ]
     };
     
-    bot.sendMessage(chatId, text.title, {
+    bot.sendMessage(chatId, planText, {
         reply_markup: keyboard,
         parse_mode: 'Markdown'
     });
@@ -503,9 +508,11 @@ bot.on('callback_query', async (query) => {
 
     if (data.startsWith('plan_')) {
         const parts = data.split('_');
-        const planKey = parts[1];
-        const lang = parts[2] || 'en';
-        showPlanDetails(chatId, planKey, lang);
+        if (parts.length >= 3) {
+            const planKey = `${parts[1]}_${parts[2]}`;
+            const lang = parts[3] || 'en';
+            showPlanDetails(chatId, planKey, lang);
+        }
     }
 
     if (data.startsWith('back_plans_')) {
@@ -516,8 +523,8 @@ bot.on('callback_query', async (query) => {
     if (data.startsWith('srv_')) {
         const parts = data.split('_');
         const server = parts[1];
-        const planKey = parts[2];
-        const lang = parts[3] || 'en';
+        const planKey = `${parts[2]}_${parts[3]}`;
+        const lang = parts[4] || 'en';
         showPaymentDetails(chatId, server, planKey, lang);
     }
 
