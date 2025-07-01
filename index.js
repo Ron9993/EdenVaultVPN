@@ -65,26 +65,75 @@ function showLanguageSelection(chatId) {
     });
 }
 
-// Show main menu with plans based on language
+// Show main menu with 4 main options
 function showMainMenu(chatId, lang = 'en') {
     const texts = {
         en: {
-            welcome: '🔐 *EdenVaultVPN - Your Digital Freedom*\n\n📦 Choose your VPN Plan:',
-            mini: '🟢 Mini (100GB) - 3000 MMK',
-            power: '🔵 Power (300GB) - 6000 MMK',
-            ultra: '🔴 Ultra (500GB) - 8000 MMK'
+            welcome: '🔐 *EdenVaultVPN - Your Digital Freedom*\n\nWelcome to secure VPN service!',
+            choosePlan: '📦 Choose Plan',
+            myPlan: '👤 My Plan',
+            support: '💬 Support',
+            language: '🌐 Language'
         },
         cn: {
-            welcome: '🔐 *EdenVaultVPN - 您的数字自由*\n\n📦 选择您的VPN套餐：',
-            mini: '🟢 迷你套餐 (100GB) - 3000 MMK',
-            power: '🔵 强力套餐 (300GB) - 6000 MMK',
-            ultra: '🔴 超级套餐 (500GB) - 8000 MMK'
+            welcome: '🔐 *EdenVaultVPN - 您的数字自由*\n\n欢迎使用安全VPN服务！',
+            choosePlan: '📦 选择套餐',
+            myPlan: '👤 我的套餐',
+            support: '💬 客服支持',
+            language: '🌐 语言'
         },
         mm: {
-            welcome: '🔐 *EdenVaultVPN - သင့်ဒစ်ဂျစ်တယ်လွတ်လပ်မှု*\n\n📦 သင့် VPN အစီအစဥ်ကို ရွေးချယ်ပါ：',
+            welcome: '🔐 *EdenVaultVPN - သင့်ဒစ်ဂျစ်တယ်လွတ်လပ်မှု*\n\nလုံခြုံသော VPN ဝန်ဆောင်မှုသို့ ကြိုဆိုပါသည်！',
+            choosePlan: '📦 အစီအစဥ်ရွေးရန်',
+            myPlan: '👤 ကျွန်ုပ်၏အစီအစဥ်',
+            support: '💬 အကူအညီ',
+            language: '🌐 ဘာသာစကား'
+        }
+    };
+
+    const text = texts[lang];
+    const keyboard = {
+        inline_keyboard: [
+            [
+                { text: text.choosePlan, callback_data: `choose_plans_${lang}` },
+                { text: text.myPlan, callback_data: `my_plan_${lang}` }
+            ],
+            [
+                { text: text.support, callback_data: `support_${lang}` },
+                { text: text.language, callback_data: 'change_lang' }
+            ]
+        ]
+    };
+    
+    bot.sendMessage(chatId, text.welcome, {
+        reply_markup: keyboard,
+        parse_mode: 'Markdown'
+    });
+}
+
+// Show available plans for selection
+function showPlansMenu(chatId, lang = 'en') {
+    const texts = {
+        en: {
+            title: '📦 *Choose Your VPN Plan*\n\nSelect the perfect plan for your needs:',
             mini: '🟢 Mini (100GB) - 3000 MMK',
             power: '🔵 Power (300GB) - 6000 MMK',
-            ultra: '🔴 Ultra (500GB) - 8000 MMK'
+            ultra: '🔴 Ultra (500GB) - 8000 MMK',
+            back: '🔙 Back to Menu'
+        },
+        cn: {
+            title: '📦 *选择您的VPN套餐*\n\n选择最适合您需求的套餐：',
+            mini: '🟢 迷你套餐 (100GB) - 3000 MMK',
+            power: '🔵 强力套餐 (300GB) - 6000 MMK',
+            ultra: '🔴 超级套餐 (500GB) - 8000 MMK',
+            back: '🔙 返回菜单'
+        },
+        mm: {
+            title: '📦 *သင့် VPN အစီအစဥ်ကို ရွေးချယ်ပါ*\n\nသင့်လိုအပ်ချက်အတွက် အကောင်းဆုံးအစီအစဥ်ကို ရွေးချယ်ပါ：',
+            mini: '🟢 Mini (100GB) - 3000 MMK',
+            power: '🔵 Power (300GB) - 6000 MMK',
+            ultra: '🔴 Ultra (500GB) - 8000 MMK',
+            back: '🔙 မီနူးသို့ပြန်'
         }
     };
 
@@ -94,11 +143,44 @@ function showMainMenu(chatId, lang = 'en') {
             [{ text: text.mini, callback_data: `plan_mini_${lang}` }],
             [{ text: text.power, callback_data: `plan_power_${lang}` }],
             [{ text: text.ultra, callback_data: `plan_ultra_${lang}` }],
-            [{ text: '🌐 Language', callback_data: 'change_lang' }]
+            [{ text: text.back, callback_data: `back_main_${lang}` }]
         ]
     };
     
-    bot.sendMessage(chatId, text.welcome, {
+    bot.sendMessage(chatId, text.title, {
+        reply_markup: keyboard,
+        parse_mode: 'Markdown'
+    });
+}
+
+// Show user's current plan status
+function showMyPlan(chatId, lang = 'en') {
+    const texts = {
+        en: {
+            title: '👤 *My Plan Status*',
+            noPlan: 'You don\'t have an active plan yet.\n\nClick "Choose Plan" to purchase a VPN plan.',
+            back: '🔙 Back to Menu'
+        },
+        cn: {
+            title: '👤 *我的套餐状态*',
+            noPlan: '您还没有激活的套餐。\n\n点击"选择套餐"来购买VPN套餐。',
+            back: '🔙 返回菜单'
+        },
+        mm: {
+            title: '👤 *ကျွန်ုပ်၏အစီအစဥ်အခြေအနေ*',
+            noPlan: 'သင့်တွင် ရရှိနေသောအစီအစဥ်မရှိသေးပါ။\n\nVPN အစီအစဥ်ဝယ်ယူရန် "အစီအစဥ်ရွေးရန်" ကိုနှိပ်ပါ။',
+            back: '🔙 မီနူးသို့ပြန်'
+        }
+    };
+
+    const text = texts[lang];
+    const keyboard = {
+        inline_keyboard: [
+            [{ text: text.back, callback_data: `back_main_${lang}` }]
+        ]
+    };
+    
+    bot.sendMessage(chatId, `${text.title}\n\n${text.noPlan}`, {
         reply_markup: keyboard,
         parse_mode: 'Markdown'
     });
@@ -400,6 +482,26 @@ bot.on('callback_query', async (query) => {
         showLanguageSelection(chatId);
     }
 
+    if (data.startsWith('choose_plans_')) {
+        const lang = data.split('_')[2] || 'en';
+        showPlansMenu(chatId, lang);
+    }
+
+    if (data.startsWith('my_plan_')) {
+        const lang = data.split('_')[2] || 'en';
+        showMyPlan(chatId, lang);
+    }
+
+    if (data.startsWith('support_')) {
+        const lang = data.split('_')[1] || 'en';
+        showSupport(chatId);
+    }
+
+    if (data.startsWith('back_main_')) {
+        const lang = data.split('_')[2] || 'en';
+        showMainMenu(chatId, lang);
+    }
+
     if (data.startsWith('plan_')) {
         const parts = data.split('_');
         const planKey = parts[1];
@@ -409,7 +511,7 @@ bot.on('callback_query', async (query) => {
 
     if (data.startsWith('back_plans_')) {
         const lang = data.split('_')[2] || 'en';
-        showMainMenu(chatId, lang);
+        showPlansMenu(chatId, lang);
     }
 
     if (data.startsWith('srv_')) {
