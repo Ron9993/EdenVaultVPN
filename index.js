@@ -1,85 +1,32 @@
+// EdenVaultVPN Bot - Optimized for VPS Deployment
+
 require('dotenv').config();
 const TelegramBot = require('node-telegram-bot-api');
 const QRCode = require('qrcode');
-const { v4: uuidv4 } = require('uuid');
 const axios = require('axios');
 const fs = require('fs');
-const path = require('path');
+const { v4: uuidv4 } = require('uuid');
 const http = require('http');
 
-// Process singleton lock
-const LOCK_FILE = path.join(__dirname, 'bot.lock');
+// === ENV ===
+const BOT_TOKEN = process.env.BOT_TOKEN;
+const ADMIN_ID = process.env.ADMIN_ID;
+const OUTLINE = {
+    us: process.env.US_OUTLINE_API || 'https://154.53.57.223:32987/W6Si53JA7hsJXZqMLsztAg',
+    sg: process.env.SG_OUTLINE_API || 'https://154.26.138.68:7127/h6bsFmcBWyN8O_0i6BBJiw'
+};
 
-// Check if another instance is running
-function checkSingleInstance() {
-    if (fs.existsSync(LOCK_FILE)) {
-        try {
-            const lockContent = fs.readFileSync(LOCK_FILE, 'utf8').trim();
-            const pid = parseInt(lockContent);
-
-            if (!isNaN(pid) && pid !== process.pid) {
-                try {
-                    process.kill(pid, 0);
-                    console.log(`❌ Another bot instance is running with PID: ${pid}`);
-                    process.exit(1);
-                } catch (e) {
-                    console.log(`🧹 Removing stale lock file for non-existent PID: ${pid}`);
-                    fs.unlinkSync(LOCK_FILE);
-                }
-            }
-        } catch (e) {
-            console.log('🧹 Removing corrupted lock file');
-            try {
-                fs.unlinkSync(LOCK_FILE);
-            } catch (unlinkError) {
-                console.error('❌ Could not remove lock file:', unlinkError.message);
-            }
-        }
-    }
-
-    try {
-        fs.writeFileSync(LOCK_FILE, process.pid.toString());
-        console.log(`🔒 Created process lock with PID: ${process.pid}`);
-    } catch (e) {
-        console.error('❌ Could not create lock file:', e.message);
-        process.exit(1);
-    }
-}
-
-// Clean up lock file on exit
-function cleanupLock() {
-    try {
-        if (fs.existsSync(LOCK_FILE)) {
-            fs.unlinkSync(LOCK_FILE);
-            console.log('🧹 Cleaned up process lock');
-        }
-    } catch (e) {
-        console.log('⚠️ Error cleaning lock:', e.message);
-    }
-}
-
-// Initialize singleton check
-checkSingleInstance();
-
-// Validate environment variables
-if (!process.env.BOT_TOKEN) {
-    console.error('❌ BOT_TOKEN environment variable is required');
+if (!BOT_TOKEN || !ADMIN_ID) {
+    console.error('Missing BOT_TOKEN or ADMIN_ID in .env');
     process.exit(1);
 }
 
-if (!process.env.ADMIN_ID) {
-    console.error('❌ ADMIN_ID environment variable is required');
-    process.exit(1);
-}
-
-const bot = new TelegramBot(process.env.BOT_TOKEN, { 
-    polling: false
-});
+const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 
 // Create HTTP server for health checks
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('VPN Bot is running');
+    res.end('EdenVaultVPN Bot is running');
 });
 
 const PORT = process.env.PORT || 3000;
@@ -87,838 +34,272 @@ server.listen(PORT, '0.0.0.0', () => {
     console.log(`HTTP server listening on port ${PORT}`);
 });
 
-// Bot data storage
-const users = new Map();
-const pendingPayments = new Map();
-const activePlans = new Map();
-
-// Server configurations
-const servers = {
-    us: { name: 'US Server', location: 'United States', endpoint: '154.53.57.223:8388' },
-    sg: { name: 'SG Server', location: 'Singapore', endpoint: '154.26.138.68:8388' }
-};
-
-// Plan configurations
+// === Plans ===
 const plans = {
-    mini_30: { name: 'Mini Vault', price: 3000, duration: 30, gb: 100 },
-    mini_90: { name: 'Mini Vault', price: 7000, duration: 90, gb: 100 },
-    power_30: { name: 'Power Vault', price: 6000, duration: 30, gb: 300 },
-    power_90: { name: 'Power Vault', price: 13000, duration: 90, gb: 300 },
-    ultra_30: { name: 'Ultra Vault', price: 8000, duration: 30, gb: 500 },
-    ultra_90: { name: 'Ultra Vault', price: 17000, duration: 90, gb: 500 }
+    mini: { name: 'Mini Vault', gb: 100, price: 3000, days: 30 },
+    power: { name: 'Power Vault', gb: 300, price: 6000, days: 30 },
+    ultra: { name: 'Ultra Vault', gb: 500, price: 8000, days: 30 }
 };
 
-// Languages
-const languages = {
-    en: {
-        welcome: '🌐 Welcome! Choose your language:',
-        selectPlan: '📦 Select your plan:',
-        paymentInfo: '💸 Payment Information',
-        paymentProof: 'Please upload your payment proof screenshot:',
-        paymentReceived: 'Payment received! Processing your VPN access...',
-        approved: '🎉 Payment approved!',
-        accessDetails: '🔑 Your VPN Access Details:',
-        vault: '🔐 Your digital freedom unlocked! Welcome to secure browsing.',
-        bonus: '🎁 Bonus: Share and earn!',
-        mainMenu: '🏠 Main Menu',
-        myPlan: '📊 My Plan',
-        support: '💬 Support',
-        selectServer: '🌍 Choose your server configuration:',
-        fullUS: 'Full US Server',
-        fullSG: 'Full SG Server',
-        combined: 'Combined (Split 50/50)',
-        helpTitle: '📖 Complete Setup Guide',
-        helpStep1: '🔽 Step 1: Download Outline App',
-        helpStep2: '💳 Step 2: Purchase VPN Plan',
-        helpStep3: '🔑 Step 3: Setup Your VPN',
-        helpStep4: '🌐 Step 4: Connect & Browse',
-        helpDownload: 'Download Outline from your device app store',
-        helpPurchase: 'Select a plan, choose server, and complete payment',
-        helpSetup: 'Copy access key or scan QR code in Outline app',
-        helpConnect: 'Toggle connection and enjoy secure browsing'
-    },
-    mm: {
-        welcome: '🌐 ကြိုဆိုပါတယ်! ဘာသာစကားရွေးချယ်ပါ:',
-        selectPlan: '📦 သင့်အစီအစဥ်ရွေးချယ်ပါ:',
-        paymentInfo: '💸 ငွေပေးချေမှုအချက်အလက်',
-        paymentProof: 'ငွေပေးချေမှုအထောက်အထား ပုံရိပ်တင်ပါ:',
-        paymentReceived: 'ငွေပေးချေမှုရရှိပါပြီ! VPN ဝင်ရောက်မှုကို ပြင်ဆင်နေပါသည်...',
-        approved: '🎉 ငွေပေးချေမှုအတည်ပြုပါပြီ!',
-        accessDetails: '🔑 သင့် VPN ဝင်ရောက်မှုအချက်အလက်များ:',
-        vault: '🔐 သင့်ဒစ်ဂျစ်တယ်လွတ်လပ်မှုကို ဖွင့်လှစ်ပါပြီ! လုံခြုံသောအင်တာနက်သုံးစွဲမှုကို ကြိုဆိုပါတယ်။',
-        bonus: '🎁 ဆုလာဘ်: မျှဝေပြီး ရယူပါ!',
-        mainMenu: '🏠 ပင်မမီနူး',
-        myPlan: '📊 ကျွန်ုပ်၏အစီအစဥ်',
-        support: '💬 အကူအညီ',
-        selectServer: '🌍 သင့်ဆာဗာ ပြင်ဆင်မှုရွေးချယ်ပါ:',
-        fullUS: 'US ဆာဗာအပြည့်',
-        fullSG: 'SG ဆာဗာအပြည့်',
-        combined: 'ပေါင်းစပ် (၅၀/၅၀ ခွဲဝေ)',
-        helpTitle: '📖 အပြည့်အစုံ လမ်းညွှန်',
-        helpStep1: '🔽 အဆင့် ၁: Outline အက်ပ် ဒေါင်းလုဒ်လုပ်ပါ',
-        helpStep2: '💳 အဆင့် ၂: VPN အစီအစဥ် ဝယ်ယူပါ',
-        helpStep3: '🔑 အဆင့် ၃: သင့် VPN ကို စတင်ပါ',
-        helpStep4: '🌐 အဆင့် ၄: ချိတ်ဆက်ပြီး သုံးစွဲပါ',
-        helpDownload: 'သင့်ဖုန်း App Store မှ Outline ကို ဒေါင်းလုဒ်လုပ်ပါ',
-        helpPurchase: 'အစီအစဥ်ရွေး၊ ဆာဗာရွေး၊ ငွေပေးချေပါ',
-        helpSetup: 'Access key ကူးယူပါ သို့မဟုတ် QR code ကို Outline တွင် စကင်န်ပါ',
-        helpConnect: 'ချိတ်ဆက်မှုကို ဖွင့်ပြီး လုံခြုံသော အင်တာနက်ကို သုံးစွဲပါ'
-    },
-    zh: {
-        welcome: '🌐 欢迎！请选择您的语言：',
-        selectPlan: '📦 选择您的套餐：',
-        paymentInfo: '💸 付款信息',
-        paymentProof: '请上传您的付款凭证截图：',
-        paymentReceived: '已收到付款！正在处理您的VPN访问权限...',
-        approved: '🎉 付款已审核通过！',
-        accessDetails: '🔑 您的VPN访问详情：',
-        vault: '🔐 您的数字自由已解锁！欢迎享受安全浏览。',
-        bonus: '🎁 奖励：分享赚取！',
-        mainMenu: '🏠 主菜单',
-        myPlan: '📊 我的套餐',
-        support: '💬 客服支持',
-        selectServer: '🌍 选择您的服务器配置：',
-        fullUS: '全美国服务器',
-        fullSG: '全新加坡服务器',
-        combined: '组合（各50%分配）',
-        helpTitle: '📖 完整设置指南',
-        helpStep1: '🔽 步骤1：下载Outline应用',
-        helpStep2: '💳 步骤2：购买VPN套餐',
-        helpStep3: '🔑 步骤3：设置您的VPN',
-        helpStep4: '🌐 步骤4：连接并浏览',
-        helpDownload: '从您的设备应用商店下载Outline',
-        helpPurchase: '选择套餐，选择服务器，完成付款',
-        helpSetup: '复制访问密钥或在Outline应用中扫描二维码',
-        helpConnect: '开启连接并享受安全浏览'
-    }
-};
+// === Users ===
+const userState = new Map();
+const pendingProofs = new Map();
 
-let userLanguages = new Map();
-
-// Helper function to escape markdown
-function escapeMarkdown(text) {
-    return text.replace(/[_*[\]()~`>#+=|{}.!-]/g, '\\$&');
-}
-
-// Start command
+// === Commands ===
 bot.onText(/\/start/, (msg) => {
-    const chatId = msg.chat.id;
-    const userId = msg.from.id;
-
-    if (!users.has(userId)) {
-        users.set(userId, {
-            id: userId,
-            username: msg.from.username,
-            firstName: msg.from.first_name,
-            joinDate: new Date()
-        });
-    }
-
-    showLanguageSelection(chatId);
+    const id = msg.chat.id;
+    bot.sendMessage(id, '🔐 **EdenVaultVPN - Your Digital Freedom**\n\n📦 Choose your VPN Plan:', {
+        reply_markup: {
+            inline_keyboard: [
+                [{ text: '🟢 Mini (100GB) - 3000 MMK', callback_data: 'plan_mini' }],
+                [{ text: '🔵 Power (300GB) - 6000 MMK', callback_data: 'plan_power' }],
+                [{ text: '🔴 Ultra (500GB) - 8000 MMK', callback_data: 'plan_ultra' }]
+            ]
+        },
+        parse_mode: 'Markdown'
+    });
 });
 
-function showLanguageSelection(chatId) {
-    const keyboard = {
-        inline_keyboard: [
-            [
-                { text: '🇺🇸 English', callback_data: 'lang_en' },
-                { text: '🇲🇲 Myanmar', callback_data: 'lang_mm' }
-            ],
-            [
-                { text: '🇨🇳 中文', callback_data: 'lang_zh' }
-            ]
-        ]
-    };
-
-    const message = '🌐 Welcome! Choose your language:\n🌐 ကြိုဆိုပါတယ်! ဘာသာစကားရွေးချယ်ပါ:\n🌐 欢迎！请选择您的语言：';
-
-    bot.sendMessage(chatId, message, { reply_markup: keyboard });
-}
-
-function showMainMenu(chatId, lang = 'en') {
-    const text = languages[lang];
-    const keyboard = {
-        inline_keyboard: [
-            [
-                { text: '📦 Choose Plan', callback_data: 'show_plans' },
-                { text: text.myPlan, callback_data: 'my_plan' }
-            ],
-            [
-                { text: text.support, callback_data: 'support' },
-                { text: '🌐 Language', callback_data: 'change_language' }
-            ]
-        ]
-    };
-
-    bot.sendMessage(chatId, text.mainMenu, { reply_markup: keyboard });
-}
-
-function showPlans(chatId, lang = 'en') {
-    const text = languages[lang];
-    const keyboard = {
-        inline_keyboard: [
-            [
-                { text: `🟢 ${plans.mini_30.name} - 30 Days`, callback_data: 'plan_mini_30' },
-                { text: `🟢 ${plans.mini_90.name} - 90 Days`, callback_data: 'plan_mini_90' }
-            ],
-            [
-                { text: `🔵 ${plans.power_30.name} - 30 Days`, callback_data: 'plan_power_30' },
-                { text: `🔵 ${plans.power_90.name} - 90 Days`, callback_data: 'plan_power_90' }
-            ],
-            [
-                { text: `🔴 ${plans.ultra_30.name} - 30 Days`, callback_data: 'plan_ultra_30' },
-                { text: `🔴 ${plans.ultra_90.name} - 90 Days (Most Popular)`, callback_data: 'plan_ultra_90' }
-            ],
-            [
-                { text: '🔙 Back', callback_data: 'main_menu' }
-            ]
-        ]
-    };
-
-    let planDetails = `🔐 ${text.selectPlan}\n\n`;
-    planDetails += `🟢 **Mini Vault**\n`;
-    planDetails += `• 100GB • 30 Days - ${plans.mini_30.price} MMK\n`;
-    planDetails += `• 100GB • 90 Days - ${plans.mini_90.price} MMK\n\n`;
-    planDetails += `🔵 **Power Vault**\n`;
-    planDetails += `• 300GB • 30 Days - ${plans.power_30.price} MMK\n`;
-    planDetails += `• 300GB • 90 Days - ${plans.power_90.price} MMK\n\n`;
-    planDetails += `🔴 **Ultra Vault (Most Popular)**\n`;
-    planDetails += `• 500GB • 30 Days - ${plans.ultra_30.price} MMK\n`;
-    planDetails += `• 500GB • 90 Days - ${plans.ultra_90.price} MMK`;
-
-    bot.sendMessage(chatId, planDetails, { 
-        reply_markup: keyboard,
-        parse_mode: 'Markdown'
-    });
-}
-
-function showServerSelection(chatId, planKey, lang = 'en') {
-    const text = languages[lang];
-    const plan = plans[planKey];
-
-    const keyboard = {
-        inline_keyboard: [
-            [
-                { text: `🇺🇸 ${text.fullUS} (${plan.gb}GB)`, callback_data: `server_us_${planKey}` }
-            ],
-            [
-                { text: `🇸🇬 ${text.fullSG} (${plan.gb}GB)`, callback_data: `server_sg_${planKey}` }
-            ],
-            [
-                { text: `🌍 ${text.combined} (${plan.gb/2}GB each)`, callback_data: `server_combined_${planKey}` }
-            ],
-            [
-                { text: '🔙 Back to Plans', callback_data: 'show_plans' }
-            ]
-        ]
-    };
-
-    const serverText = `${text.selectServer}\n\n📦 **${plan.name}** - ${plan.gb}GB Total\n\n🇺🇸 **US Server**: Fast speeds for Americas\n🇸🇬 **SG Server**: Fast speeds for Asia-Pacific\n🌍 **Combined**: Best of both worlds`;
-
-    bot.sendMessage(chatId, serverText, {
-        reply_markup: keyboard,
-        parse_mode: 'Markdown'
-    });
-}
-
-function showPaymentOptions(chatId, planKey, serverConfig, lang = 'en') {
-    const text = languages[lang];
-    const plan = plans[planKey];
-    const paymentId = uuidv4();
-
-    pendingPayments.set(paymentId, {
-        userId: chatId,
-        plan: planKey,
-        serverConfig: serverConfig,
-        amount: plan.price,
-        timestamp: new Date()
-    });
-
-    const keyboard = {
-        inline_keyboard: [
-            [
-                { text: '💳 KPay', callback_data: `payment_kpay_${paymentId}` },
-                { text: '🌊 Wave', callback_data: `payment_wave_${paymentId}` }
-            ],
-            [
-                { text: '🔙 Back to Server Selection', callback_data: `plan_${planKey}` }
-            ]
-        ]
-    };
-
-    let serverInfo = '';
-    if (serverConfig === 'us') {
-        serverInfo = `🇺🇸 US Server - ${plan.gb}GB`;
-    } else if (serverConfig === 'sg') {
-        serverInfo = `🇸🇬 SG Server - ${plan.gb}GB`;
-    } else {
-        serverInfo = `🌍 Combined - ${plan.gb/2}GB US + ${plan.gb/2}GB SG`;
-    }
-
-    const paymentText = `${text.paymentInfo}\n\n📦 **${plan.name}**\n🌍 **Server**: ${serverInfo}\n💰 **Amount**: ${plan.price} MMK\n📱 **Duration**: ${plan.duration} days\n\nChoose payment method:`;
-
-    bot.sendMessage(chatId, paymentText, {
-        reply_markup: keyboard,
-        parse_mode: 'Markdown'
-    });
-}
-
-function showPaymentDetails(chatId, method, paymentId, lang = 'en') {
-    const text = languages[lang];
-    const payment = pendingPayments.get(paymentId);
-
-    if (!payment) {
-        bot.sendMessage(chatId, '❌ Payment session expired. Please start a new payment.');
-        showPlans(chatId, lang);
-        return;
-    }
-
-    const plan = plans[payment.plan];
-
-    if (!plan) {
-        bot.sendMessage(chatId, '❌ Invalid plan. Please select a valid plan.');
-        showPlans(chatId, lang);
-        return;
-    }
-
-    const keyboard = {
-        inline_keyboard: [
-            [
-                { text: '📸 Upload Payment Proof', callback_data: `upload_${paymentId}` }
-            ],
-            [
-                { text: '🔙 Back', callback_data: 'show_plans' }
-            ]
-        ]
-    };
-
-    const phoneNumber = method === 'kpay' ? '09123456789' : '09987654321';
-    const methodName = method === 'kpay' ? 'KPay' : 'Wave';
-
-    const paymentDetails = `💳 **${methodName} Payment**\n\n📞 **Phone**: ${phoneNumber}\n💰 **Amount**: ${plan.price} MMK\n📦 **Plan**: ${plan.name}\n🆔 **Reference**: ${paymentId.slice(-8)}\n\n${text.paymentProof}`;
-
-    bot.sendMessage(chatId, paymentDetails, {
-        reply_markup: keyboard,
-        parse_mode: 'Markdown'
-    });
-}
-
-async function generateVPNAccess(userId, plan, serverConfig) {
-    const axios = require('axios');
-    const configs = [];
-
-    // Outline Management API endpoints
-    const outlineServers = {
-        us: 'https://154.53.57.223:32987/W6Si53JA7hsJXZqMLsztAg',
-        sg: 'https://154.26.138.68:7127/h6bsFmcBWyN8O_0i6BBJiw'
-    };
-
-    // Configure axios to ignore SSL certificate errors (for self-signed certs)
-    const axiosConfig = {
-        timeout: 10000,
-        httpsAgent: new (require('https').Agent)({
-            rejectUnauthorized: false
-        })
-    };
-
-    // Helper function to set data limit for a key
-    async function setDataLimit(serverUrl, keyId, limitBytes) {
-        try {
-            await axios.put(`${serverUrl}/access-keys/${keyId}/data-limit`, {
-                limit: { bytes: limitBytes }
-            }, axiosConfig);
-            console.log(`Data limit set for key ${keyId}: ${limitBytes} bytes (${limitBytes/1024/1024/1024}GB)`);
-        } catch (error) {
-            console.error(`Error setting data limit for key ${keyId}:`, error.message);
-        }
-    }
-
-    try {
-        if (serverConfig === 'us') {
-            const response = await axios.post(`${outlineServers.us}/access-keys`, {
-                name: `VPN_${plan.name}_US_${userId}`
-            }, axiosConfig);
-
-            // Set data limit (GB to bytes conversion)
-            const limitBytes = plan.gb * 1024 * 1024 * 1024;
-            await setDataLimit(outlineServers.us, response.data.id, limitBytes);
-
-            configs.push({ 
-                server: 'US', 
-                accessKey: response.data.accessUrl, 
-                gb: plan.gb,
-                keyId: response.data.id
-            });
-        } else if (serverConfig === 'sg') {
-            const response = await axios.post(`${outlineServers.sg}/access-keys`, {
-                name: `VPN_${plan.name}_SG_${userId}`
-            }, axiosConfig);
-
-            // Set data limit (GB to bytes conversion)
-            const limitBytes = plan.gb * 1024 * 1024 * 1024;
-            await setDataLimit(outlineServers.sg, response.data.id, limitBytes);
-
-            configs.push({ 
-                server: 'SG', 
-                accessKey: response.data.accessUrl, 
-                gb: plan.gb,
-                keyId: response.data.id
-            });
-        } else { // combined
-            // Create US key
-            const usResponse = await axios.post(`${outlineServers.us}/access-keys`, {
-                name: `VPN_${plan.name}_US_${userId}`
-            }, axiosConfig);
-
-            // Create SG key
-            const sgResponse = await axios.post(`${outlineServers.sg}/access-keys`, {
-                name: `VPN_${plan.name}_SG_${userId}`
-            }, axiosConfig);
-
-            // Set data limits for both servers (half the total for each)
-            const limitBytesPerServer = (plan.gb / 2) * 1024 * 1024 * 1024;
-            await setDataLimit(outlineServers.us, usResponse.data.id, limitBytesPerServer);
-            await setDataLimit(outlineServers.sg, sgResponse.data.id, limitBytesPerServer);
-
-            configs.push({ 
-                server: 'US', 
-                accessKey: usResponse.data.accessUrl, 
-                gb: plan.gb / 2,
-                keyId: usResponse.data.id
-            });
-            configs.push({ 
-                server: 'SG', 
-                accessKey: sgResponse.data.accessUrl, 
-                gb: plan.gb / 2,
-                keyId: sgResponse.data.id
-            });
-        }
-
-        const qrBuffers = [];
-        for (const config of configs) {
-            const qrBuffer = await QRCode.toBuffer(config.accessKey);
-            qrBuffers.push({ server: config.server, qrBuffer, gb: config.gb });
-        }
-
-        return { configs, qrBuffers };
-
-    } catch (error) {
-        console.error('Error creating VPN access keys:', error.message);
-        throw new Error('Failed to create VPN access keys. Please contact support.');
-    }
-}
-
-// Callback query handler
-bot.on('callback_query', async (callbackQuery) => {
-    const msg = callbackQuery.message;
-    const chatId = msg.chat.id;
-    const data = callbackQuery.data;
-    const userId = callbackQuery.from.id;
-
-    const lang = userLanguages.get(userId) || 'en';
-    const text = languages[lang];
-
-    if (data.startsWith('lang_')) {
-        const selectedLang = data.split('_')[1];
-        userLanguages.set(userId, selectedLang);
-        bot.editMessageText(text.welcome, {
-            chat_id: chatId,
-            message_id: msg.message_id
-        });
-        setTimeout(() => showMainMenu(chatId, selectedLang), 1000);
-    }
-
-    if (data === 'main_menu') {
-        showMainMenu(chatId, lang);
-    }
-
-    if (data === 'show_plans') {
-        showPlans(chatId, lang);
-    }
-
-    if (data === 'change_language') {
-        showLanguageSelection(chatId, true);
-    }
+bot.on('callback_query', async (query) => {
+    const id = query.message.chat.id;
+    const data = query.data;
 
     if (data.startsWith('plan_')) {
-        const planKey = data.substring(5); // Remove 'plan_' prefix
-        showServerSelection(chatId, planKey, lang);
+        const key = data.split('_')[1];
+        const plan = plans[key];
+        userState.set(id, { plan: key });
+
+        bot.sendMessage(id, `📦 **${plan.name}** Selected\n💾 **Data:** ${plan.gb}GB\n💰 **Price:** ${plan.price} MMK\n📅 **Duration:** ${plan.days} days\n\n🌍 Choose Server Location:`, {
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: '🇺🇸 US Server', callback_data: `srv_us_${key}` }],
+                    [{ text: '🇸🇬 SG Server', callback_data: `srv_sg_${key}` }],
+                    [{ text: '🌐 Both Servers (Split)', callback_data: `srv_both_${key}` }],
+                    [{ text: '🔙 Back to Plans', callback_data: 'back_plans' }]
+                ]
+            },
+            parse_mode: 'Markdown'
+        });
     }
 
-    if (data.startsWith('server_')) {
-        const parts = data.split('_');
-        const serverConfig = parts[1];
-        const planKey = parts.slice(2).join('_'); // Handle plan keys with underscores
-        showPaymentOptions(chatId, planKey, serverConfig, lang);
+    if (data === 'back_plans') {
+        bot.sendMessage(id, '📦 Choose your VPN Plan:', {
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: '🟢 Mini (100GB) - 3000 MMK', callback_data: 'plan_mini' }],
+                    [{ text: '🔵 Power (300GB) - 6000 MMK', callback_data: 'plan_power' }],
+                    [{ text: '🔴 Ultra (500GB) - 8000 MMK', callback_data: 'plan_ultra' }]
+                ]
+            }
+        });
     }
 
-    if (data.startsWith('payment_')) {
-        const parts = data.split('_');
-        const method = parts[1];
-        const paymentId = parts[2];
-        showPaymentDetails(chatId, method, paymentId, lang);
+    if (data.startsWith('srv_')) {
+        const [, server, planKey] = data.split('_');
+        const plan = plans[planKey];
+        const uid = uuidv4();
+        pendingProofs.set(uid, { id, server, planKey, timestamp: new Date() });
+
+        let serverText = '';
+        if (server === 'us') {
+            serverText = '🇺🇸 **US Server** - Fast speeds for Americas';
+        } else if (server === 'sg') {
+            serverText = '🇸🇬 **SG Server** - Fast speeds for Asia-Pacific';
+        } else {
+            serverText = '🌐 **Both Servers** - Best of both worlds (data split 50/50)';
+        }
+
+        bot.sendMessage(id, `💳 **Payment Required**\n\n${serverText}\n📦 **Plan:** ${plan.name}\n💾 **Data:** ${plan.gb}GB\n💰 **Amount:** ${plan.price} MMK\n\n📱 **Pay via KPay:** 09123456789\n🆔 **Reference:** ${uid.slice(-8)}\n\nAfter payment, upload your screenshot:`, {
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: '📤 Upload Payment Proof', callback_data: `proof_${uid}` }],
+                    [{ text: '🔙 Back to Servers', callback_data: `plan_${planKey}` }]
+                ]
+            },
+            parse_mode: 'Markdown'
+        });
     }
 
-    if (data.startsWith('upload_')) {
-        const paymentId = data.split('_')[1];
-        const payment = pendingPayments.get(paymentId);
+    if (data.startsWith('proof_')) {
+        const uid = data.split('_')[1];
+        const proof = pendingProofs.get(uid);
 
-        if (!payment) {
-            bot.sendMessage(chatId, '❌ Payment session expired. Please start a new payment.');
-            showPlans(chatId, lang);
+        if (!proof) {
+            bot.sendMessage(id, '❌ Payment session expired. Please start a new payment.');
             return;
         }
 
-        bot.sendMessage(chatId, text.paymentProof);
-        console.log(`Waiting for payment proof from user ${chatId} for payment ${paymentId}`);
+        bot.sendMessage(id, '📸 Please send your payment screenshot now.\n⏰ You have 5 minutes to upload.');
 
-        // Set up photo listener for this specific payment
         const photoListener = async (photoMsg) => {
-            if (photoMsg.chat.id === chatId && photoMsg.photo) {
-                bot.sendMessage(chatId, '✅ Payment proof received! Your payment is being reviewed by our team. You will be notified once approved.');
+            if (photoMsg.chat.id !== id || !photoMsg.photo) return;
 
-                const payment = pendingPayments.get(paymentId);
-                if (!payment) {
-                    bot.sendMessage(chatId, '❌ Payment session expired. Please contact support.');
-                    bot.removeListener('photo', photoListener);
-                    return;
-                }
-                const plan = plans[payment.plan];
+            bot.sendMessage(id, '✅ Payment proof received! Your payment is being reviewed by our team.\n⏱️ Approval usually takes 5-30 minutes.');
 
-                let serverInfo = '';
-                if (payment.serverConfig === 'us') {
-                    serverInfo = `🇺🇸 US Server - ${plan.gb}GB`;
-                } else if (payment.serverConfig === 'sg') {
-                    serverInfo = `🇸🇬 SG Server - ${plan.gb}GB`;
-                } else {
-                    serverInfo = `🌍 Combined - ${plan.gb/2}GB US + ${plan.gb/2}GB SG`;
-                }
-
-                // Log payment for record keeping
-                console.log('PAYMENT AWAITING APPROVAL:', {
-                    paymentId,
-                    userId: photoMsg.from.id,
-                    username: photoMsg.from.username,
-                    plan: plan.name,
-                    amount: plan.price,
-                    server: serverInfo,
-                    timestamp: new Date().toISOString()
-                });
-
-                // Send to admin for approval
-                const adminKeyboard = {
-                    inline_keyboard: [
-                        [
-                            { text: '✅ Approve', callback_data: `approve_${paymentId}` },
-                            { text: '❌ Reject', callback_data: `reject_${paymentId}` }
-                        ]
-                    ]
-                };
-
-                const adminMessage = `🔔 **New Payment for Review**\n\n👤 **User:** ${photoMsg.from.first_name} (@${photoMsg.from.username || 'No username'})\n🆔 **User ID:** ${photoMsg.from.id}\n📦 **Plan:** ${plan.name}\n🌍 **Server:** ${serverInfo}\n💰 **Amount:** ${plan.price} MMK\n🔑 **Payment ID:** ${paymentId}\n📅 **Time:** ${new Date().toLocaleString()}\n\nReview the payment proof and approve/reject:`;
-
-                // Forward the photo to admin
-                bot.forwardMessage(process.env.ADMIN_ID, chatId, photoMsg.message_id);
-
-                // Send admin the payment details
-                bot.sendMessage(process.env.ADMIN_ID, adminMessage, {
-                    reply_markup: adminKeyboard,
-                    parse_mode: 'Markdown'
-                });
-
-                // Remove the listener
-                bot.removeListener('photo', photoListener);
+            const plan = plans[proof.planKey];
+            let serverInfo = '';
+            if (proof.server === 'us') {
+                serverInfo = `🇺🇸 US Server - ${plan.gb}GB`;
+            } else if (proof.server === 'sg') {
+                serverInfo = `🇸🇬 SG Server - ${plan.gb}GB`;
+            } else {
+                serverInfo = `🌐 Both Servers - ${plan.gb/2}GB each`;
             }
+
+            const adminText = `🔔 **New Payment for Review**\n\n👤 **User:** ${photoMsg.from.first_name} (@${photoMsg.from.username || 'No username'})\n🆔 **User ID:** ${id}\n📦 **Plan:** ${plan.name}\n🌍 **Server:** ${serverInfo}\n💰 **Amount:** ${plan.price} MMK\n🔑 **Payment ID:** ${uid}\n📅 **Time:** ${new Date().toLocaleString()}\n\nReview and approve/reject:`;
+
+            // Forward the photo to admin
+            bot.forwardMessage(ADMIN_ID, id, photoMsg.message_id);
+
+            // Send admin the payment details with approval buttons
+            bot.sendMessage(ADMIN_ID, adminText, {
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: '✅ Approve Payment', callback_data: `approve_${uid}` }],
+                        [{ text: '❌ Reject Payment', callback_data: `reject_${uid}` }]
+                    ]
+                },
+                parse_mode: 'Markdown'
+            });
+
+            bot.removeListener('photo', photoListener);
         };
 
         bot.on('photo', photoListener);
+
+        // Auto-remove listener after 5 minutes
+        setTimeout(() => {
+            bot.removeListener('photo', photoListener);
+        }, 300000);
     }
 
-    // Admin approval handling
     if (data.startsWith('approve_')) {
-        const paymentId = data.split('_')[1];
-        const payment = pendingPayments.get(paymentId);
-
-        console.log('Admin approval attempt:', {
-            paymentId,
-            fromUserId: callbackQuery.from.id,
-            adminId: process.env.ADMIN_ID,
-            paymentExists: !!payment,
-            isAdmin: callbackQuery.from.id.toString() === process.env.ADMIN_ID
-        });
-
-        if (payment && callbackQuery.from.id.toString() === process.env.ADMIN_ID) {
-            const userLang = userLanguages.get(payment.userId) || 'en';
-            console.log('Processing approval for payment:', paymentId);
-            await approvePayment(payment.userId, paymentId, userLang);
-
-            bot.editMessageText(`✅ **Payment Approved**\n\nPayment ID: ${paymentId}\nUser: ${payment.userId}\nProcessed successfully!`, {
-                chat_id: chatId,
-                message_id: msg.message_id,
-                parse_mode: 'Markdown'
-            });
-        } else {
-            console.log('Admin approval denied - not authorized or payment not found');
-            bot.sendMessage(chatId, '❌ Authorization failed or payment not found');
+        if (query.from.id.toString() !== ADMIN_ID) {
+            bot.answerCallbackQuery(query.id, { text: '❌ Unauthorized' });
+            return;
         }
-    }
 
-    // Admin rejection handling
-    if (data.startsWith('reject_')) {
-        const paymentId = data.split('_')[1];
-        const payment = pendingPayments.get(paymentId);
-
-        console.log('Admin rejection attempt:', {
-            paymentId,
-            fromUserId: callbackQuery.from.id,
-            adminId: process.env.ADMIN_ID,
-            paymentExists: !!payment,
-            isAdmin: callbackQuery.from.id.toString() === process.env.ADMIN_ID
-        });
-
-        if (payment && callbackQuery.from.id.toString() === process.env.ADMIN_ID) {
-            const userLang = userLanguages.get(payment.userId) || 'en';
-            const userText = languages[userLang];
-
-            bot.sendMessage(payment.userId, `❌ Payment rejected. Please contact support for assistance.\n❌ ငွေပေးချေမှုကို ငြင်းပယ်ခဲ့သည်။ အကူအညီအတွက် ဆက်သွယ်ပါ။\n❌ 付款被拒绝。请联系客服寻求帮助。`);
-
-            bot.editMessageText(`❌ **Payment Rejected**\n\nPayment ID: ${paymentId}\nUser: ${payment.userId}\nReason: Manual rejection by admin`, {
-                chat_id: chatId,
-                message_id: msg.message_id,
-                parse_mode: 'Markdown'
-            });
-
-            pendingPayments.delete(paymentId);
-        } else {
-            console.log('Admin rejection denied - not authorized or payment not found');
-            bot.sendMessage(chatId, '❌ Authorization failed or payment not found');
+        const uid = data.split('_')[1];
+        const proof = pendingProofs.get(uid);
+        if (!proof) {
+            bot.sendMessage(id, '❌ Payment not found or already processed.');
+            return;
         }
-    }
 
-    if (data === 'my_plan') {
-        const userPlan = activePlans.get(userId);
-        if (userPlan) {
-            let planInfo = `📊 **Your Active Plan**\n\n📦 Plan: ${userPlan.planName}\n📱 Expires: ${userPlan.expiryDate.toDateString()}\n🔗 Status: Active\n\n`;
+        const user = proof.id;
+        const plan = plans[proof.planKey];
+        const split = proof.server === 'both';
+        const limitBytes = (plan.gb / (split ? 2 : 1)) * 1024 * 1024 * 1024; // GB to bytes
+        const keys = [];
 
-            if (userPlan.configs) {
-                planInfo += '🌍 **Server Access:**\n';
-                userPlan.configs.forEach(config => {
-                    planInfo += `${config.server === 'US' ? '🇺🇸' : '🇸🇬'} ${config.server}: ${config.gb}GB\n`;
+        try {
+            async function createKey(server) {
+                const response = await axios.post(`${OUTLINE[server]}/access-keys`, {
+                    name: `EdenVault_${user}_${server}_${Date.now()}`
+                }, { 
+                    httpsAgent: new (require('https').Agent)({ rejectUnauthorized: false }),
+                    timeout: 10000 
+                });
+
+                // Set data limit
+                await axios.put(`${OUTLINE[server]}/access-keys/${response.data.id}/data-limit`, {
+                    limit: { bytes: limitBytes }
+                }, { 
+                    httpsAgent: new (require('https').Agent)({ rejectUnauthorized: false }),
+                    timeout: 10000 
+                });
+
+                return { url: response.data.accessUrl, server: server.toUpperCase(), gb: limitBytes / (1024**3) };
+            }
+
+            if (split) {
+                keys.push(await createKey('us'));
+                keys.push(await createKey('sg'));
+            } else {
+                keys.push(await createKey(proof.server));
+            }
+
+            // Send success message to user
+            bot.sendMessage(user, '🎉 **Payment Approved!**\n\nYour VPN access is ready! Download **Outline** app and use the keys below:', { parse_mode: 'Markdown' });
+
+            // Send each key with QR code
+            for (const key of keys) {
+                bot.sendMessage(user, `🔑 **${key.server} Server Access**\n💾 **Data Limit:** ${key.gb}GB\n\n\`${key.url}\``, { parse_mode: 'Markdown' });
+
+                // Generate and send QR code
+                const qrBuffer = await QRCode.toBuffer(key.url);
+                bot.sendPhoto(user, qrBuffer, { 
+                    caption: `${key.server === 'US' ? '🇺🇸' : '🇸🇬'} ${key.server} Server QR Code - Scan with Outline app` 
                 });
             }
 
-            bot.sendMessage(chatId, planInfo, { parse_mode: 'Markdown' });
-        } else {
-            bot.sendMessage(chatId, 'No active plan found. Please purchase a plan first.');
+            // Send setup instructions
+            bot.sendMessage(user, '📱 **Setup Instructions:**\n\n1️⃣ Download **Outline** app from your app store\n2️⃣ Copy the access key or scan QR code\n3️⃣ Paste key in Outline app\n4️⃣ Connect and enjoy secure browsing!\n\n💬 **Support:** @edenvault_88\n📧 **Email:** edenvault888@gmail.com');
+
+            pendingProofs.delete(uid);
+            bot.editMessageText(`✅ **Payment Approved & Processed**\n\nPayment ID: ${uid}\nUser: ${user}\nKeys generated successfully!`, {
+                chat_id: id,
+                message_id: query.message.message_id,
+                parse_mode: 'Markdown'
+            });
+
+        } catch (error) {
+            console.error('Error creating VPN keys:', error.message);
+            bot.sendMessage(user, '❌ Error generating VPN access. Please contact support.');
+            bot.sendMessage(id, `❌ Error processing payment ${uid}: ${error.message}`);
         }
     }
 
-    if (data === 'support') {
-        bot.sendMessage(chatId, '💬 **Support Contact**\n\nTelegram: @edenvault_88\nEmail: edenvault888@gmail.com\nResponse time: 24 hours', { parse_mode: 'Markdown' });
-    }
+    if (data.startsWith('reject_')) {
+        if (query.from.id.toString() !== ADMIN_ID) {
+            bot.answerCallbackQuery(query.id, { text: '❌ Unauthorized' });
+            return;
+        }
 
-    bot.answerCallbackQuery(callbackQuery.id);
-});
+        const uid = data.split('_')[1];
+        const proof = pendingProofs.get(uid);
+        if (!proof) {
+            bot.sendMessage(id, '❌ Payment not found or already processed.');
+            return;
+        }
 
-async function approvePayment(chatId, paymentId, lang) {
-    const text = languages[lang];
-    const payment = pendingPayments.get(paymentId);
-    const plan = plans[payment.plan];
+        bot.sendMessage(proof.id, '❌ **Payment Rejected**\n\nYour payment could not be verified. Please contact support for assistance.\n\n💬 **Support:** @edenvault_88', { parse_mode: 'Markdown' });
 
-    try {
-        const { configs, qrBuffers } = await generateVPNAccess(payment.userId, plan, payment.serverConfig);
-
-        const expiryDate = new Date();
-        expiryDate.setDate(expiryDate.getDate() + plan.duration);
-
-        activePlans.set(payment.userId, {
-            planName: plan.name,
-            expiryDate: expiryDate,
-            serverConfig: payment.serverConfig,
-            configs: configs
+        pendingProofs.delete(uid);
+        bot.editMessageText(`❌ **Payment Rejected**\n\nPayment ID: ${uid}\nUser: ${proof.id}\nReason: Manual rejection by admin`, {
+            chat_id: id,
+            message_id: query.message.message_id,
+            parse_mode: 'Markdown'
         });
-
-        bot.sendMessage(chatId, text.approved);
-
-        for (let i = 0; i < configs.length; i++) {
-            const config = configs[i];
-            const qrData = qrBuffers[i];
-
-            const accessMessage = `${text.accessDetails}\n\n🌍 **${config.server} Server**\n📱 **Expires:** ${expiryDate.toDateString()}\n📊 **Data Limit:** ${config.gb}GB\n\n👇 **Copy your access key below:**`;
-
-            bot.sendMessage(chatId, accessMessage, { parse_mode: 'Markdown' });
-            bot.sendMessage(chatId, config.accessKey);
-
-            bot.sendPhoto(chatId, qrData.qrBuffer, { 
-                caption: `${config.server === 'US' ? '🇺🇸' : '🇸🇬'} ${config.server} Server QR Code - ${config.gb}GB\nScan with your VPN app` 
-            });
-        }
-
-        const bonusMessage = `${text.bonus}\n\n🔗 Invite friends: t.me/yourvpnbot?start=ref_${payment.userId}\n💰 Earn 5GB for each successful referral!\n📊 Your referrals: 0`;
-        bot.sendMessage(chatId, bonusMessage);
-
-        pendingPayments.delete(paymentId);
-    } catch (error) {
-        console.error('Error approving payment:', error.message);
-        bot.sendMessage(chatId, 'Error processing payment. Please contact support.');
     }
-}
 
-// Command handlers
-bot.onText(/\/menu/, (msg) => {
-    const chatId = msg.chat.id;
-    const userId = msg.from.id;
-    const lang = userLanguages.get(userId) || 'en';
-    showMainMenu(chatId, lang);
+    bot.answerCallbackQuery(query.id);
 });
 
-bot.onText(/\/plans/, (msg) => {
-    const chatId = msg.chat.id;
-    const userId = msg.from.id;
-    const lang = userLanguages.get(userId) || 'en';
-    showPlans(chatId, lang);
-});
-
-bot.onText(/\/myplan/, (msg) => {
-    const chatId = msg.chat.id;
-    const userId = msg.from.id;
-    const lang = userLanguages.get(userId) || 'en';
-
-    const userPlan = activePlans.get(userId);
-    if (userPlan) {
-        let planInfo = `📊 **Your Active Plan**\n\n📦 Plan: ${userPlan.planName}\n📱 Expires: ${userPlan.expiryDate.toDateString()}\n🔗 Status: Active\n\n`;
-
-        if (userPlan.configs) {
-            planInfo += '🌍 **Server Access:**\n';
-            userPlan.configs.forEach(config => {
-                planInfo += `${config.server === 'US' ? '🇺🇸' : '🇸🇬'} ${config.server}: ${config.gb}GB\n`;
-            });
-        }
-
-        bot.sendMessage(chatId, planInfo, { parse_mode: 'Markdown' });
-    } else {
-        bot.sendMessage(chatId, 'No active plan found. Use /plans to purchase a plan first.');
-    }
-});
-
+// Additional commands
 bot.onText(/\/help/, (msg) => {
-    const chatId = msg.chat.id;
-    const userId = msg.from.id;
-    const lang = userLanguages.get(userId) || 'en';
-    const text = languages[lang];
-    
-    const helpMessage = `${text.helpTitle}\n\n${text.helpStep1}\n${text.helpDownload}\n\n${text.helpStep2}\n${text.helpPurchase}\n\n${text.helpStep3}\n${text.helpSetup}\n\n${text.helpStep4}\n${text.helpConnect}\n\n📱 **Available Commands:**\n/start - Start the bot\n/menu - Main menu\n/plans - View all plans\n/myplan - Check active plan\n/support - Contact support\n/lang - Change language\n/help - This help guide`;
-    
-    bot.sendMessage(chatId, helpMessage, { parse_mode: 'Markdown' });
+    const helpText = `🔐 **EdenVaultVPN Help**\n\n📱 **Commands:**\n/start - Start the bot\n/help - Show this help\n/support - Contact support\n\n📋 **How to use:**\n1️⃣ Choose a plan\n2️⃣ Select server location\n3️⃣ Pay via KPay\n4️⃣ Upload payment proof\n5️⃣ Get your VPN keys\n\n💬 **Need help?** Contact @edenvault_88`;
+    bot.sendMessage(msg.chat.id, helpText, { parse_mode: 'Markdown' });
 });
 
 bot.onText(/\/support/, (msg) => {
-    const chatId = msg.chat.id;
-    bot.sendMessage(chatId, '💬 **Support Contact**\n\nTelegram: @edenvault_88\nEmail: edenvault888@gmail.com\nResponse time: 24 hours', { parse_mode: 'Markdown' });
+    bot.sendMessage(msg.chat.id, '💬 **Support Contact**\n\nTelegram: @edenvault_88\nEmail: edenvault888@gmail.com\nResponse time: 24 hours', { parse_mode: 'Markdown' });
 });
 
-bot.onText(/\/lang/, (msg) => {
-    const chatId = msg.chat.id;
-    showLanguageSelection(chatId, true);
-});
-
-// Set bot commands
-bot.setMyCommands([
-    { command: 'start', description: 'Start the bot' },
-    { command: 'menu', description: 'Main menu' },
-    { command: 'help', description: 'Setup guide & help' },
-    { command: 'plans', description: 'View all VPN plans' },
-    { command: 'myplan', description: 'Check your active plan' },
-    { command: 'support', description: 'Contact support' },
-    { command: 'lang', description: 'Change language' }
-]);
-
-async function startBot() {
-    try {
-        console.log('🤖 Starting VPN Bot...');
-
-        // Stop any existing polling first
-        if (bot.isPolling()) {
-            console.log('🛑 Stopping existing polling...');
-            await bot.stopPolling();
-            await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
-        }
-
-        const me = await bot.getMe();
-        console.log(`✅ Bot connected: @${me.username}`);
-
-        await bot.startPolling({
-            polling: {
-                interval: 2000,
-                params: {
-                    timeout: 30
-                },
-                allowed_updates: ['message', 'callback_query']
-            }
-        });
-
-        console.log('🚀 Bot started successfully!');
-        console.log('🔄 Bot is now running and listening for messages...');
-
-    } catch (error) {
-        console.error('❌ Error starting bot:', error.message);
-        if (error.message.includes('409')) {
-            console.log('🔄 Retrying in 5 seconds...');
-            setTimeout(() => {
-                process.exit(1);
-            }, 5000);
-        } else {
-            process.exit(1);
-        }
-    }
-}
-
-// Graceful shutdown
-async function gracefulShutdown(signal) {
-    console.log(`🛑 Received ${signal}, shutting down gracefully...`);
-
-    try {
-        if (bot.isPolling()) {
-            await bot.stopPolling();
-            console.log('✅ Bot polling stopped');
-        }
-
-        cleanupLock();
-        console.log('✅ Cleanup completed');
-
-        process.exit(0);
-    } catch (error) {
-        console.error('❌ Error during shutdown:', error.message);
-        cleanupLock();
-        process.exit(1);
-    }
-}
-
-process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-
-process.on('exit', (code) => {
-    console.log(`🔚 Process exiting with code: ${code}`);
-    cleanupLock();
-});
-
-process.on('uncaughtException', (error) => {
-    console.error('💥 Uncaught Exception:', error.message);
-    console.error(error.stack);
-    cleanupLock();
-    process.exit(1);
+// Error handling
+bot.on('polling_error', (error) => {
+    console.error('Polling error:', error.message);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-    console.error('💥 Unhandled Rejection at:', promise, 'reason:', reason);
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
-console.log('🤖 VPN Bot initializing...');
-console.log('📋 Available commands: /start /menu /help /plans /myplan /support /lang');
+process.on('uncaughtException', (error) => {
+    console.error('Uncaught Exception:', error.message);
+    process.exit(1);
+});
 
-// Check if running in deployment
-if (process.env.REPLIT_DEPLOYMENT) {
-    console.log('🚀 Running in Replit Deployment environment');
-}
-
-startBot();
+console.log('🤖 EdenVaultVPN Bot started successfully!');
+console.log(`🌐 Health check server running on port ${PORT}`);
+console.log('📱 Bot is ready to receive messages...');
