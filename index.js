@@ -622,8 +622,48 @@ function showHelp(chatId) {
 }
 
 // Show support information
-function showSupport(chatId) {
-    const supportText = `💬 *EdenVaultVPN Support*\n\n🔧 *Need Help?*\n\n📱 **Telegram:** @edenvault\\_88\n📧 **Email:** edenvault888@gmail.com\n⏰ **Response Time:** Usually within 24 hours\n\n❓ *Common Issues:*\n• Payment problems - Send screenshot\n• Connection issues - Check your internet\n• App setup help - We'll guide you!\n• Refund requests - Valid within 7 days\n\n🚀 *Quick Commands:*\n/help - Full command guide\n/plans - View packages\n/status - Check your plan\n/servers - Server locations\n\n📞 We're here to help 24/7!`;
+function showSupport(chatId, lang = 'en') {
+    const texts = {
+        en: {
+            title: '💬 *EdenVaultVPN Support*',
+            needHelp: '🔧 *Need Help?*',
+            telegram: '📱 **Telegram:**',
+            email: '📧 **Email:**',
+            responseTime: '⏰ **Response Time:** Usually within 24 hours',
+            commonIssues: '❓ *Common Issues:*',
+            issues: '• Payment problems - Send screenshot\n• Connection issues - Check your internet\n• App setup help - We\'ll guide you!\n• Refund requests - Valid within 7 days',
+            quickCommands: '🚀 *Quick Commands:*',
+            commands: '/help - Full command guide\n/plans - View packages\n/status - Check your plan\n/servers - Server locations',
+            available: '📞 We\'re here to help 24/7!'
+        },
+        cn: {
+            title: '💬 *EdenVaultVPN 客服支持*',
+            needHelp: '🔧 *需要帮助？*',
+            telegram: '📱 **Telegram:**',
+            email: '📧 **邮箱:**',
+            responseTime: '⏰ **响应时间:** 通常24小时内',
+            commonIssues: '❓ *常见问题：*',
+            issues: '• 付款问题 - 发送截图\n• 连接问题 - 检查网络\n• 应用设置帮助 - 我们来指导！\n• 退款请求 - 7天内有效',
+            quickCommands: '🚀 *快速命令：*',
+            commands: '/help - 完整命令指南\n/plans - 查看套餐\n/status - 检查您的计划\n/servers - 服务器位置',
+            available: '📞 我们24/7为您服务！'
+        },
+        mm: {
+            title: '💬 *EdenVaultVPN အကူအညီ*',
+            needHelp: '🔧 *အကူအညီလိုပါသလား？*',
+            telegram: '📱 **Telegram:**',
+            email: '📧 **အီးမေးလ်:**',
+            responseTime: '⏰ **တုံ့ပြန်ချိန်:** များသောအားဖြင့် ၂၄နာရီအတွင်း',
+            commonIssues: '❓ *အဖြစ်များသောပြဿနာများ：*',
+            issues: '• ငွေပေးချေမှုပြဿနာများ - ဓာတ်ပုံပေးပို့ပါ\n• ချိတ်ဆက်မှုပြဿနာများ - အင်တာနက်စစ်ဆေးပါ\n• အက်ပ်သတ်မှတ်ခြင်းအကူအညီ - ကျွန်ုပ်တို့လမ်းညွှန်ပေးပါမည်!\n• ငွေပြန်အမ်းတောင်းခံခြင်း - ၇ရက်အတွင်းတရားဝင်',
+            quickCommands: '🚀 *မြန်ဆန်သောလမ်းညွှန်များ：*',
+            commands: '/help - အပြည့်အစုံလမ်းညွှန်\n/plans - အစီအစဥ်များကြည့်ရှုရန်\n/status - သင့်အစီအစဥ်စစ်ဆေးရန်\n/servers - ဆာဗာတည်နေရာများ',
+            available: '📞 ကျွန်ုပ်တို့ ၂၄/၇ အကူအညီပေးပါသည်!'
+        }
+    };
+
+    const text = texts[lang];
+    const supportText = `${text.title}\n\n${text.needHelp}\n\n${text.telegram} @edenvault\\_88\n${text.email} edenvault888@gmail.com\n${text.responseTime}\n\n${text.commonIssues}\n${text.issues}\n\n${text.quickCommands}\n${text.commands}\n\n${text.available}`;
     
     bot.sendMessage(chatId, supportText, { parse_mode: 'Markdown' });
 }
@@ -644,17 +684,20 @@ bot.onText(/\/help/, (msg) => {
 
 // Menu command - direct access to main menu
 bot.onText(/\/menu/, (msg) => {
-    showMainMenu(msg.chat.id, 'en');
+    const userLang = userLanguages.get(msg.chat.id) || 'en';
+    showMainMenu(msg.chat.id, userLang);
 });
 
 // Plans command - direct access to plans
 bot.onText(/\/plans/, (msg) => {
-    showPlansMenu(msg.chat.id, 'en');
+    const userLang = userLanguages.get(msg.chat.id) || 'en';
+    showPlansMenu(msg.chat.id, userLang);
 });
 
 // Status command - check current plan
 bot.onText(/\/status/, (msg) => {
-    showMyPlan(msg.chat.id, 'en');
+    const userLang = userLanguages.get(msg.chat.id) || 'en';
+    showMyPlan(msg.chat.id, userLang);
 });
 
 // Pricing command - detailed pricing info
@@ -673,7 +716,8 @@ bot.onText(/\/servers/, (msg) => {
 
 // Support command
 bot.onText(/\/support/, (msg) => {
-    showSupport(msg.chat.id);
+    const userLang = userLanguages.get(msg.chat.id) || 'en';
+    showSupport(msg.chat.id, userLang);
 });
 
 // Admin command to view all users (admin only)
@@ -717,6 +761,9 @@ bot.onText(/\/users/, (msg) => {
     bot.sendMessage(msg.chat.id, usersList, { parse_mode: 'Markdown' });
 });
 
+// Store user's preferred language
+const userLanguages = new Map();
+
 // Callback query handler
 bot.on('callback_query', async (query) => {
     const chatId = query.message.chat.id;
@@ -724,6 +771,7 @@ bot.on('callback_query', async (query) => {
 
     if (data.startsWith('lang_')) {
         const lang = data.split('_')[1];
+        userLanguages.set(chatId, lang); // Store user's language preference
         showMainMenu(chatId, lang);
     }
 
@@ -732,22 +780,22 @@ bot.on('callback_query', async (query) => {
     }
 
     if (data.startsWith('choose_plans_')) {
-        const lang = data.split('_')[2] || 'en';
+        const lang = data.split('_')[2] || userLanguages.get(chatId) || 'en';
         showPlansMenu(chatId, lang);
     }
 
     if (data.startsWith('my_plan_')) {
-        const lang = data.split('_')[2] || 'en';
+        const lang = data.split('_')[2] || userLanguages.get(chatId) || 'en';
         showMyPlan(chatId, lang);
     }
 
     if (data.startsWith('support_')) {
-        const lang = data.split('_')[1] || 'en';
-        showSupport(chatId);
+        const lang = data.split('_')[1] || userLanguages.get(chatId) || 'en';
+        showSupport(chatId, lang);
     }
 
     if (data.startsWith('back_main_')) {
-        const lang = data.split('_')[2] || 'en';
+        const lang = data.split('_')[2] || userLanguages.get(chatId) || 'en';
         showMainMenu(chatId, lang);
     }
 
@@ -755,13 +803,13 @@ bot.on('callback_query', async (query) => {
         const parts = data.split('_');
         if (parts.length >= 3) {
             const planKey = `${parts[1]}_${parts[2]}`;
-            const lang = parts[3] || 'en';
+            const lang = parts[3] || userLanguages.get(chatId) || 'en';
             showPlanDetails(chatId, planKey, lang);
         }
     }
 
     if (data.startsWith('back_plans_')) {
-        const lang = data.split('_')[2] || 'en';
+        const lang = data.split('_')[2] || userLanguages.get(chatId) || 'en';
         showPlansMenu(chatId, lang);
     }
 
@@ -769,7 +817,7 @@ bot.on('callback_query', async (query) => {
         const parts = data.split('_');
         const server = parts[1];
         const planKey = `${parts[2]}_${parts[3]}`;
-        const lang = parts[4] || 'en';
+        const lang = parts[4] || userLanguages.get(chatId) || 'en';
         showPaymentMethods(chatId, server, planKey, lang);
     }
 
@@ -778,7 +826,7 @@ bot.on('callback_query', async (query) => {
         const paymentMethod = parts[1];
         const server = parts[2];
         const planKey = `${parts[3]}_${parts[4]}`;
-        const lang = parts[5] || 'en';
+        const lang = parts[5] || userLanguages.get(chatId) || 'en';
         showPaymentDetails(chatId, paymentMethod, server, planKey, lang);
     }
 
