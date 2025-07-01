@@ -131,21 +131,21 @@ function showPlansMenu(chatId, lang = 'en') {
     };
 
     const text = texts[lang];
-    const planText = `${text.title}\n\n🟢 **Mini Vault**\n• 100GB • 30 Days - 3000 MMK *(Perfect for social media, messaging, light browsing)*\n• 100GB • 90 Days - 7000 MMK\n\n🔵 **Power Vault**\n• 300GB • 30 Days - 6000 MMK\n• 300GB • 90 Days - 13000 MMK\n\n🔴 **Ultra Vault (Most Popular)**\n• 500GB • 30 Days - 8000 MMK\n• 500GB • 90 Days - 17000 MMK`;
+    const planText = `${text.title}\n\n🟢 **Mini Vault**\n• 100GB • 30 Days - 3000 MMK\n• 100GB • 90 Days - 7000 MMK\n\n🔵 **Power Vault**\n• 300GB • 30 Days - 6000 MMK\n• 300GB • 90 Days - 13000 MMK\n\n🔴 **Ultra Vault**\n• 500GB • 30 Days - 8000 MMK *(Most Popular)*\n• 500GB • 90 Days - 17000 MMK`;
     
     const keyboard = {
         inline_keyboard: [
             [
-                { text: '🟢 Mini 30D', callback_data: `plan_mini_30_${lang}` },
-                { text: '🟢 Mini 90D', callback_data: `plan_mini_90_${lang}` }
+                { text: '🟢 Mini Vault - 30 Days', callback_data: `plan_mini_30_${lang}` },
+                { text: '🟢 Mini Vault - 90 Days', callback_data: `plan_mini_90_${lang}` }
             ],
             [
-                { text: '🔵 Power 30D', callback_data: `plan_power_30_${lang}` },
-                { text: '🔵 Power 90D', callback_data: `plan_power_90_${lang}` }
+                { text: '🔵 Power Vault - 30 Days', callback_data: `plan_power_30_${lang}` },
+                { text: '🔵 Power Vault - 90 Days', callback_data: `plan_power_90_${lang}` }
             ],
             [
-                { text: '🔴 Ultra 30D', callback_data: `plan_ultra_30_${lang}` },
-                { text: '🔴 Ultra 90D', callback_data: `plan_ultra_90_${lang}` }
+                { text: '🔴 Ultra Vault - 30 Days', callback_data: `plan_ultra_30_${lang}` },
+                { text: '🔴 Ultra Vault - 90 Days', callback_data: `plan_ultra_90_${lang}` }
             ],
             [{ text: text.back, callback_data: `back_main_${lang}` }]
         ]
