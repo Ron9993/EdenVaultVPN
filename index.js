@@ -48,6 +48,7 @@ const plans = {
 const userState = new Map();
 const pendingProofs = new Map();
 const userPlans = new Map(); // Store user plans: userId -> { planKey, server, keys, purchaseDate, expiryDate, dataUsed }
+const userLanguages = new Map(); // Store user's preferred language
 
 // === FUNCTIONS ===
 
@@ -761,8 +762,7 @@ bot.onText(/\/users/, (msg) => {
     bot.sendMessage(msg.chat.id, usersList, { parse_mode: 'Markdown' });
 });
 
-// Store user's preferred language
-const userLanguages = new Map();
+
 
 // Callback query handler
 bot.on('callback_query', async (query) => {
