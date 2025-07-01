@@ -48,14 +48,14 @@ const pendingProofs = new Map();
 
 // === FUNCTIONS ===
 
-// Show main menu with plans
-function showMainMenu(chatId) {
-    const welcomeText = '🔐 *EdenVaultVPN - Your Digital Freedom*\n\n📦 Choose your VPN Plan:';
+// Show language selection
+function showLanguageSelection(chatId) {
+    const welcomeText = '🔐 *EdenVaultVPN*\n\nPlease select your language:\n请选择您的语言：\nကျေးဇူးပြု၍ သင့်ဘာသာစကားကို ရွေးချယ်ပါ：';
     const keyboard = {
         inline_keyboard: [
-            [{ text: '🟢 Mini (100GB) - 3000 MMK', callback_data: 'plan_mini' }],
-            [{ text: '🔵 Power (300GB) - 6000 MMK', callback_data: 'plan_power' }],
-            [{ text: '🔴 Ultra (500GB) - 8000 MMK', callback_data: 'plan_ultra' }]
+            [{ text: '🇺🇸 English', callback_data: 'lang_en' }],
+            [{ text: '🇨🇳 中文', callback_data: 'lang_cn' }],
+            [{ text: '🇲🇲 မြန်မာ', callback_data: 'lang_mm' }]
         ]
     };
     
@@ -65,18 +65,98 @@ function showMainMenu(chatId) {
     });
 }
 
-// Show plan details and server selection
-function showPlanDetails(chatId, planKey) {
-    const plan = plans[planKey];
-    userState.set(chatId, { plan: planKey });
+// Show main menu with plans based on language
+function showMainMenu(chatId, lang = 'en') {
+    const texts = {
+        en: {
+            welcome: '🔐 *EdenVaultVPN - Your Digital Freedom*\n\n📦 Choose your VPN Plan:',
+            mini: '🟢 Mini (100GB) - 3000 MMK',
+            power: '🔵 Power (300GB) - 6000 MMK',
+            ultra: '🔴 Ultra (500GB) - 8000 MMK'
+        },
+        cn: {
+            welcome: '🔐 *EdenVaultVPN - 您的数字自由*\n\n📦 选择您的VPN套餐：',
+            mini: '🟢 迷你套餐 (100GB) - 3000 MMK',
+            power: '🔵 强力套餐 (300GB) - 6000 MMK',
+            ultra: '🔴 超级套餐 (500GB) - 8000 MMK'
+        },
+        mm: {
+            welcome: '🔐 *EdenVaultVPN - သင့်ဒစ်ဂျစ်တယ်လွတ်လပ်မှု*\n\n📦 သင့် VPN အစီအစဥ်ကို ရွေးချယ်ပါ：',
+            mini: '🟢 Mini (100GB) - 3000 MMK',
+            power: '🔵 Power (300GB) - 6000 MMK',
+            ultra: '🔴 Ultra (500GB) - 8000 MMK'
+        }
+    };
 
-    const planText = `📦 *${plan.name}* Selected\n💾 *Data:* ${plan.gb}GB\n💰 *Price:* ${plan.price} MMK\n📅 *Duration:* ${plan.days} days\n\n🌍 Choose Server Location:`;
+    const text = texts[lang];
     const keyboard = {
         inline_keyboard: [
-            [{ text: '🇺🇸 US Server', callback_data: `srv_us_${planKey}` }],
-            [{ text: '🇸🇬 SG Server', callback_data: `srv_sg_${planKey}` }],
-            [{ text: '🌐 Both Servers (Split)', callback_data: `srv_both_${planKey}` }],
-            [{ text: '🔙 Back to Plans', callback_data: 'back_plans' }]
+            [{ text: text.mini, callback_data: `plan_mini_${lang}` }],
+            [{ text: text.power, callback_data: `plan_power_${lang}` }],
+            [{ text: text.ultra, callback_data: `plan_ultra_${lang}` }],
+            [{ text: '🌐 Language', callback_data: 'change_lang' }]
+        ]
+    };
+    
+    bot.sendMessage(chatId, text.welcome, {
+        reply_markup: keyboard,
+        parse_mode: 'Markdown'
+    });
+}
+
+// Show plan details and server selection
+function showPlanDetails(chatId, planKey, lang = 'en') {
+    const plan = plans[planKey];
+    userState.set(chatId, { plan: planKey, lang: lang });
+
+    const texts = {
+        en: {
+            selected: 'Selected',
+            data: 'Data',
+            price: 'Price',
+            duration: 'Duration',
+            days: 'days',
+            choose: 'Choose Server Location:',
+            us: '🇺🇸 US Server',
+            sg: '🇸🇬 SG Server',
+            both: '🌐 Both Servers (Split)',
+            back: '🔙 Back to Plans'
+        },
+        cn: {
+            selected: '已选择',
+            data: '流量',
+            price: '价格',
+            duration: '时长',
+            days: '天',
+            choose: '选择服务器位置：',
+            us: '🇺🇸 美国服务器',
+            sg: '🇸🇬 新加坡服务器',
+            both: '🌐 双服务器 (分割)',
+            back: '🔙 返回套餐'
+        },
+        mm: {
+            selected: 'ရွေးချယ်ပြီး',
+            data: 'ဒေတာ',
+            price: 'စျေးနှုန်း',
+            duration: 'ကြာချိန်',
+            days: 'ရက်',
+            choose: 'ဆာဗာတည်နေရာကို ရွေးချယ်ပါ：',
+            us: '🇺🇸 US ဆာဗာ',
+            sg: '🇸🇬 SG ဆာဗာ',
+            both: '🌐 ဆာဗာနှစ်ခုလုံး (ခွဲဝေ)',
+            back: '🔙 အစီအစဥ်များသို့ပြန်'
+        }
+    };
+
+    const text = texts[lang];
+    const planText = `📦 *${plan.name}* ${text.selected}\n💾 *${text.data}:* ${plan.gb}GB\n💰 *${text.price}:* ${plan.price} MMK\n📅 *${text.duration}:* ${plan.days} ${text.days}\n\n🌍 ${text.choose}`;
+    
+    const keyboard = {
+        inline_keyboard: [
+            [{ text: text.us, callback_data: `srv_us_${planKey}_${lang}` }],
+            [{ text: text.sg, callback_data: `srv_sg_${planKey}_${lang}` }],
+            [{ text: text.both, callback_data: `srv_both_${planKey}_${lang}` }],
+            [{ text: text.back, callback_data: `back_plans_${lang}` }]
         ]
     };
 
@@ -293,7 +373,7 @@ function showSupport(chatId) {
 
 // Start command
 bot.onText(/\/start/, (msg) => {
-    showMainMenu(msg.chat.id);
+    showLanguageSelection(msg.chat.id);
 });
 
 // Help command
@@ -311,18 +391,33 @@ bot.on('callback_query', async (query) => {
     const chatId = query.message.chat.id;
     const data = query.data;
 
-    if (data.startsWith('plan_')) {
-        const planKey = data.split('_')[1];
-        showPlanDetails(chatId, planKey);
+    if (data.startsWith('lang_')) {
+        const lang = data.split('_')[1];
+        showMainMenu(chatId, lang);
     }
 
-    if (data === 'back_plans') {
-        showMainMenu(chatId);
+    if (data === 'change_lang') {
+        showLanguageSelection(chatId);
+    }
+
+    if (data.startsWith('plan_')) {
+        const parts = data.split('_');
+        const planKey = parts[1];
+        const lang = parts[2] || 'en';
+        showPlanDetails(chatId, planKey, lang);
+    }
+
+    if (data.startsWith('back_plans_')) {
+        const lang = data.split('_')[2] || 'en';
+        showMainMenu(chatId, lang);
     }
 
     if (data.startsWith('srv_')) {
-        const [, server, planKey] = data.split('_');
-        showPaymentDetails(chatId, server, planKey);
+        const parts = data.split('_');
+        const server = parts[1];
+        const planKey = parts[2];
+        const lang = parts[3] || 'en';
+        showPaymentDetails(chatId, server, planKey, lang);
     }
 
     if (data.startsWith('proof_')) {
