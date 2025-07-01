@@ -801,6 +801,17 @@ bot.onText(/\/myplan/, (msg) => {
     }
 });
 
+bot.onText(/\/help/, (msg) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+    const lang = userLanguages.get(userId) || 'en';
+    const text = languages[lang];
+    
+    const helpMessage = `${text.helpTitle}\n\n${text.helpStep1}\n${text.helpDownload}\n\n${text.helpStep2}\n${text.helpPurchase}\n\n${text.helpStep3}\n${text.helpSetup}\n\n${text.helpStep4}\n${text.helpConnect}\n\n📱 **Available Commands:**\n/start - Start the bot\n/menu - Main menu\n/plans - View all plans\n/myplan - Check active plan\n/support - Contact support\n/lang - Change language\n/help - This help guide`;
+    
+    bot.sendMessage(chatId, helpMessage, { parse_mode: 'Markdown' });
+});
+
 bot.onText(/\/support/, (msg) => {
     const chatId = msg.chat.id;
     bot.sendMessage(chatId, '💬 **Support Contact**\n\nTelegram: @edenvault_88\nEmail: edenvault888@gmail.com\nResponse time: 24 hours', { parse_mode: 'Markdown' });
