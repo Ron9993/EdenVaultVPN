@@ -5,64 +5,38 @@ const { v4: uuidv4 } = require('uuid');
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
+const http = require('http');
 
 // Process singleton lock
 const LOCK_FILE = path.join(__dirname, 'bot.lock');
 
 // Check if another instance is running
 function checkSingleInstance() {
-    const maxRetries = 3;
-    let retries = 0;
-    
-    while (retries < maxRetries) {
-        if (fs.existsSync(LOCK_FILE)) {
-            try {
-                const lockContent = fs.readFileSync(LOCK_FILE, 'utf8').trim();
-                const pid = parseInt(lockContent);
-                
-                if (!isNaN(pid) && pid !== process.pid) {
-                    try {
-                        // Check if process is still running
-                        process.kill(pid, 0);
-                        console.log(`❌ Another bot instance is running with PID: ${pid}`);
-                        console.log('⏳ Waiting 5 seconds before retry...');
-                        
-                        // Wait and retry
-                        require('child_process').execSync('sleep 5');
-                        retries++;
-                        continue;
-                    } catch (e) {
-                        // Process doesn't exist, remove stale lock
-                        console.log(`🧹 Removing stale lock file for non-existent PID: ${pid}`);
-                        fs.unlinkSync(LOCK_FILE);
-                        break;
-                    }
-                } else {
-                    // Invalid PID or same as current process, remove it
-                    console.log('🧹 Removing invalid lock file');
-                    fs.unlinkSync(LOCK_FILE);
-                    break;
-                }
-            } catch (e) {
-                console.log('🧹 Removing corrupted lock file');
+    if (fs.existsSync(LOCK_FILE)) {
+        try {
+            const lockContent = fs.readFileSync(LOCK_FILE, 'utf8').trim();
+            const pid = parseInt(lockContent);
+
+            if (!isNaN(pid) && pid !== process.pid) {
                 try {
+                    process.kill(pid, 0);
+                    console.log(`❌ Another bot instance is running with PID: ${pid}`);
+                    process.exit(1);
+                } catch (e) {
+                    console.log(`🧹 Removing stale lock file for non-existent PID: ${pid}`);
                     fs.unlinkSync(LOCK_FILE);
-                } catch (unlinkError) {
-                    console.error('❌ Could not remove lock file:', unlinkError.message);
                 }
-                break;
             }
-        } else {
-            break;
+        } catch (e) {
+            console.log('🧹 Removing corrupted lock file');
+            try {
+                fs.unlinkSync(LOCK_FILE);
+            } catch (unlinkError) {
+                console.error('❌ Could not remove lock file:', unlinkError.message);
+            }
         }
     }
-    
-    if (retries >= maxRetries) {
-        console.log('❌ Failed to acquire process lock after retries');
-        process.exit(1);
-    }
 
-    // Create lock file with current PID
     try {
         fs.writeFileSync(LOCK_FILE, process.pid.toString());
         console.log(`🔒 Created process lock with PID: ${process.pid}`);
@@ -87,16 +61,22 @@ function cleanupLock() {
 // Initialize singleton check
 checkSingleInstance();
 
-const http = require('http');
+// Validate environment variables
+if (!process.env.BOT_TOKEN) {
+    console.error('❌ BOT_TOKEN environment variable is required');
+    process.exit(1);
+}
+
+if (!process.env.ADMIN_ID) {
+    console.error('❌ ADMIN_ID environment variable is required');
+    process.exit(1);
+}
 
 const bot = new TelegramBot(process.env.BOT_TOKEN, { 
-    polling: {
-        interval: 2000,
-        autoStart: false
-    }
+    polling: false
 });
 
-// Create HTTP server for health checks (required for Autoscale deployments)
+// Create HTTP server for health checks
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end('VPN Bot is running');
@@ -107,7 +87,7 @@ server.listen(PORT, '0.0.0.0', () => {
     console.log(`HTTP server listening on port ${PORT}`);
 });
 
-// Bot data storage (in production, use a database)
+// Bot data storage
 const users = new Map();
 const pendingPayments = new Map();
 const activePlans = new Map();
@@ -215,6 +195,11 @@ const languages = {
 
 let userLanguages = new Map();
 
+// Helper function to escape markdown
+function escapeMarkdown(text) {
+    return text.replace(/[_*[\]()~`>#+=|{}.!-]/g, '\\$&');
+}
+
 // Start command
 bot.onText(/\/start/, (msg) => {
     const chatId = msg.chat.id;
@@ -232,9 +217,7 @@ bot.onText(/\/start/, (msg) => {
     showLanguageSelection(chatId);
 });
 
-
-
-function showLanguageSelection(chatId, showBackButton = false) {
+function showLanguageSelection(chatId) {
     const keyboard = {
         inline_keyboard: [
             [
@@ -247,18 +230,10 @@ function showLanguageSelection(chatId, showBackButton = false) {
         ]
     };
 
-    if (showBackButton) {
-        keyboard.inline_keyboard.push([
-            { text: '🔙 Back', callback_data: 'main_menu' }
-        ]);
-    }
+    const message = '🌐 Welcome! Choose your language:\n🌐 ကြိုဆိုပါတယ်! ဘာသာစကားရွေးချယ်ပါ:\n🌐 欢迎！请选择您的语言：';
 
-    bot.sendMessage(chatId, '🌐 Welcome! Choose your language:\n🌐 ကြိုဆိုပါတယ်! ဘာသာစကားရွေးချယ်ပါ:\n🌐 欢迎！请选择您的语言：', {
-        reply_markup: keyboard
-    });
+    bot.sendMessage(chatId, message, { reply_markup: keyboard });
 }
-
-
 
 function showMainMenu(chatId, lang = 'en') {
     const text = languages[lang];
@@ -565,8 +540,6 @@ bot.on('callback_query', async (callbackQuery) => {
         showLanguageSelection(chatId, true);
     }
 
-
-
     if (data.startsWith('plan_')) {
         const planKey = data.substring(5); // Remove 'plan_' prefix
         showServerSelection(chatId, planKey, lang);
@@ -744,8 +717,6 @@ bot.on('callback_query', async (callbackQuery) => {
         bot.sendMessage(chatId, '💬 **Support Contact**\n\nTelegram: @edenvault_88\nEmail: edenvault888@gmail.com\nResponse time: 24 hours', { parse_mode: 'Markdown' });
     }
 
-
-
     bot.answerCallbackQuery(callbackQuery.id);
 });
 
@@ -754,178 +725,60 @@ async function approvePayment(chatId, paymentId, lang) {
     const payment = pendingPayments.get(paymentId);
     const plan = plans[payment.plan];
 
-    // Generate VPN access
-    const { configs, qrBuffers } = await generateVPNAccess(payment.userId, plan, payment.serverConfig);
+    try {
+        const { configs, qrBuffers } = await generateVPNAccess(payment.userId, plan, payment.serverConfig);
 
-    // Add to active plans
-    const expiryDate = new Date();
-    expiryDate.setDate(expiryDate.getDate() + plan.duration);
+        const expiryDate = new Date();
+        expiryDate.setDate(expiryDate.getDate() + plan.duration);
 
-    activePlans.set(payment.userId, {
-        planName: plan.name,
-        expiryDate: expiryDate,
-        serverConfig: payment.serverConfig,
-        configs: configs
-    });
-
-    // 1. Send approval message
-    bot.sendMessage(chatId, text.approved);
-
-    // 2. Send access details for each server
-    for (let i = 0; i < configs.length; i++) {
-        const config = configs[i];
-        const qrData = qrBuffers[i];
-
-        const accessMessage = `${text.accessDetails}\n\n🌍 **${config.server} Server**\n📱 **Expires:** ${expiryDate.toDateString()}\n📊 **Data Limit:** ${config.gb}GB\n\n👇 **Copy your access key below:**`;
-
-        bot.sendMessage(chatId, accessMessage, { parse_mode: 'Markdown' });
-
-        // 3. Send access key in a separate copyable message
-        bot.sendMessage(chatId, config.accessKey);
-
-        // 4. Send QR code
-        bot.sendPhoto(chatId, qrData.qrBuffer, { 
-            caption: `${config.server === 'US' ? '🇺🇸' : '🇸🇬'} ${config.server} Server QR Code - ${config.gb}GB\nScan with your VPN app` 
+        activePlans.set(payment.userId, {
+            planName: plan.name,
+            expiryDate: expiryDate,
+            serverConfig: payment.serverConfig,
+            configs: configs
         });
-    }
 
-    // 5. Send bonus info
-    const bonusMessage = `${text.bonus}\n\n🔗 Invite friends: t.me/yourvpnbot?start=ref_${payment.userId}\n💰 Earn 5GB for each successful referral!\n📊 Your referrals: 0`;
-    bot.sendMessage(chatId, bonusMessage);
+        bot.sendMessage(chatId, text.approved);
 
-    // Clean up
-    pendingPayments.delete(paymentId);
-}
+        for (let i = 0; i < configs.length; i++) {
+            const config = configs[i];
+            const qrData = qrBuffers[i];
 
-// Improved bot startup
-async function startBot() {
-    const maxStartupRetries = 5;
-    let startupRetries = 0;
-    
-    while (startupRetries < maxStartupRetries) {
-        try {
-            console.log(`🤖 Starting bot... (attempt ${startupRetries + 1}/${maxStartupRetries})`);
+            const accessMessage = `${text.accessDetails}\n\n🌍 **${config.server} Server**\n📱 **Expires:** ${expiryDate.toDateString()}\n📊 **Data Limit:** ${config.gb}GB\n\n👇 **Copy your access key below:**`;
 
-            // Test connection first
-            const me = await bot.getMe();
-            console.log(`✅ Bot connected: @${me.username}`);
+            bot.sendMessage(chatId, accessMessage, { parse_mode: 'Markdown' });
+            bot.sendMessage(chatId, config.accessKey);
 
-            // Stop any existing polling first
-            if (bot.isPolling()) {
-                await bot.stopPolling({ cancel: true });
-                console.log('🛑 Stopped existing polling');
-                await new Promise(resolve => setTimeout(resolve, 2000));
-            }
-
-            // Clear any existing webhooks
-            try {
-                await bot.deleteWebHook({ drop_pending_updates: true });
-                console.log('✅ Webhook cleared');
-            } catch (e) {
-                console.log('⚠️ Webhook clear failed:', e.message);
-            }
-
-            // Wait before starting polling
-            await new Promise(resolve => setTimeout(resolve, 3000));
-
-            // Start polling with proper configuration
-            console.log('🚀 Starting polling...');
-            await bot.startPolling({
-                restart: false,
-                polling: {
-                    interval: 3000,
-                    autoStart: true,
-                    params: {
-                        timeout: 30,
-                        allowed_updates: ['message', 'callback_query']
-                    }
-                }
+            bot.sendPhoto(chatId, qrData.qrBuffer, { 
+                caption: `${config.server === 'US' ? '🇺🇸' : '🇸🇬'} ${config.server} Server QR Code - ${config.gb}GB\nScan with your VPN app` 
             });
-
-            console.log('✅ Bot started successfully!');
-            console.log('🔄 Bot is now running and listening for messages...');
-            
-            // Success, break the retry loop
-            break;
-
-        } catch (error) {
-            console.error(`❌ Error starting bot (attempt ${startupRetries + 1}):`, error.message);
-            
-            if (error.code === 'ETELEGRAM' && error.response?.statusCode === 409) {
-                console.log('🚫 409 Conflict - another instance detected');
-                console.log('⏳ Waiting 10 seconds before retry...');
-                await new Promise(resolve => setTimeout(resolve, 10000));
-                startupRetries++;
-                
-                if (startupRetries >= maxStartupRetries) {
-                    console.log('💀 Max retries reached, terminating...');
-                    cleanupLock();
-                    process.exit(1);
-                }
-            } else {
-                console.log(`🔄 Retrying in ${5 * (startupRetries + 1)} seconds...`);
-                await new Promise(resolve => setTimeout(resolve, 5000 * (startupRetries + 1)));
-                startupRetries++;
-                
-                if (startupRetries >= maxStartupRetries) {
-                    console.log('💀 Max startup retries reached, exiting...');
-                    cleanupLock();
-                    process.exit(1);
-                }
-            }
         }
+
+        const bonusMessage = `${text.bonus}\n\n🔗 Invite friends: t.me/yourvpnbot?start=ref_${payment.userId}\n💰 Earn 5GB for each successful referral!\n📊 Your referrals: 0`;
+        bot.sendMessage(chatId, bonusMessage);
+
+        pendingPayments.delete(paymentId);
+    } catch (error) {
+        console.error('Error approving payment:', error.message);
+        bot.sendMessage(chatId, 'Error processing payment. Please contact support.');
     }
-    
-    // Keep the process alive with heartbeat
-    setInterval(() => {
-        console.log(`💓 Bot heartbeat - ${new Date().toISOString()}`);
-    }, 300000); // Every 5 minutes
 }
 
-// Enhanced error handling
-bot.on('polling_error', (error) => {
-    console.error('⚠️ Polling error:', error.code, error.message);
-
-    if (error.code === 'ETELEGRAM') {
-        if (error.response?.statusCode === 409) {
-            console.log('🚫 409 Conflict - Multiple instances detected');
-            console.log('💀 Terminating to prevent conflicts...');
-            cleanupLock();
-            process.exit(1);
-        } else if (error.response?.statusCode === 429) {
-            const retryAfter = error.response?.parameters?.retry_after || 60;
-            console.log(`🐌 Rate limited. Waiting ${retryAfter}s...`);
-        } else {
-            console.log('🔄 Telegram error, but continuing...');
-        }
-    } else {
-        console.log('🔄 Network error, continuing...');
-    }
-});
-
-bot.on('error', (error) => {
-    console.error('❌ Bot error:', error.message);
-});
-
-// Menu command
+// Command handlers
 bot.onText(/\/menu/, (msg) => {
     const chatId = msg.chat.id;
     const userId = msg.from.id;
     const lang = userLanguages.get(userId) || 'en';
-
     showMainMenu(chatId, lang);
 });
 
-// Plans command
 bot.onText(/\/plans/, (msg) => {
     const chatId = msg.chat.id;
     const userId = msg.from.id;
     const lang = userLanguages.get(userId) || 'en';
-
     showPlans(chatId, lang);
 });
 
-// My Plan command
 bot.onText(/\/myplan/, (msg) => {
     const chatId = msg.chat.id;
     const userId = msg.from.id;
@@ -948,110 +801,17 @@ bot.onText(/\/myplan/, (msg) => {
     }
 });
 
-// Support command
 bot.onText(/\/support/, (msg) => {
     const chatId = msg.chat.id;
     bot.sendMessage(chatId, '💬 **Support Contact**\n\nTelegram: @edenvault_88\nEmail: edenvault888@gmail.com\nResponse time: 24 hours', { parse_mode: 'Markdown' });
 });
 
-// Language command
 bot.onText(/\/lang/, (msg) => {
     const chatId = msg.chat.id;
     showLanguageSelection(chatId, true);
 });
 
-// Debug command to clear webhooks (remove after fixing)
-bot.onText(/\/clearwebhook/, async (msg) => {
-    const chatId = msg.chat.id;
-    if (msg.from.id.toString() === process.env.ADMIN_ID) {
-        try {
-            await bot.deleteWebHook();
-            bot.sendMessage(chatId, '✅ Webhook cleared successfully!');
-        } catch (error) {
-            bot.sendMessage(chatId, `❌ Error clearing webhook: ${error.message}`);
-        }
-    }
-});
-
-// Debug command for admin verification
-bot.onText(/\/debug/, (msg) => {
-    const chatId = msg.chat.id;
-    const userId = msg.from.id;
-
-    console.log('Debug info:', {
-        chatId,
-        userId,
-        adminId: process.env.ADMIN_ID,
-        isAdmin: userId.toString() === process.env.ADMIN_ID,
-        pendingPaymentsCount: pendingPayments.size
-    });
-
-    if (userId.toString() === process.env.ADMIN_ID) {
-        bot.sendMessage(chatId, `🔧 **Admin Debug Info**\n\nYour ID: ${userId}\nAdmin ID: ${process.env.ADMIN_ID}\nMatch: ${userId.toString() === process.env.ADMIN_ID}\nPending Payments: ${pendingPayments.size}`, {
-            parse_mode: 'Markdown'
-        });
-    } else {
-        bot.sendMessage(chatId, 'Not authorized for debug info');
-    }
-});
-
-// Help command
-bot.onText(/\/help/, (msg) => {
-    const chatId = msg.chat.id;
-    const userId = msg.from.id;
-    const lang = userLanguages.get(userId) || 'en';
-    const text = languages[lang];
-
-    const helpMessage = `📖 **Complete Setup Guide**
-
-🔽 **Step 1: Download Outline App**
-${text.helpDownload}
-
-💳 **Step 2: Purchase VPN Plan**
-${text.helpPurchase}
-
-🔑 **Step 3: Setup Your VPN**
-${text.helpSetup}
-
-🌐 **Step 4: Connect & Browse**
-${text.helpConnect}
-
-📱 **Download Links:**
-• Android: Play Store → Search "Outline"
-• iOS: App Store → Search "Outline"  
-• Windows/Mac: getoutline.org
-
-💡 **Need Help?** Use /support to contact us!
-
-🤖 **Available Commands:**
-/start - Start the bot
-/menu - Main menu
-/plans - View VPN plans
-/myplan - Check active plan
-/support - Contact support
-/lang - Change language`;
-
-    const helpKeyboard = {
-        inline_keyboard: [
-            [
-                { text: '📱 Download Outline', url: 'https://getoutline.org/get-started/' }
-            ],
-            [
-                { text: '📦 Choose Plan', callback_data: 'show_plans' }
-            ],
-            [
-                { text: '🏠 Main Menu', callback_data: 'main_menu' }
-            ]
-        ]
-    };
-
-    bot.sendMessage(chatId, helpMessage, {
-        reply_markup: helpKeyboard,
-        parse_mode: 'Markdown'
-    });
-});
-
-// Set up menu button
+// Set bot commands
 bot.setMyCommands([
     { command: 'start', description: 'Start the bot' },
     { command: 'menu', description: 'Main menu' },
@@ -1062,21 +822,45 @@ bot.setMyCommands([
     { command: 'lang', description: 'Change language' }
 ]);
 
-// Graceful shutdown handling
+async function startBot() {
+    try {
+        console.log('🤖 Starting VPN Bot...');
+
+        const me = await bot.getMe();
+        console.log(`✅ Bot connected: @${me.username}`);
+
+        await bot.startPolling({
+            polling: {
+                interval: 1000,
+                params: {
+                    timeout: 10
+                },
+                allowed_updates: ['message', 'callback_query']
+            }
+        });
+
+        console.log('🚀 Bot started successfully!');
+        console.log('🔄 Bot is now running and listening for messages...');
+
+    } catch (error) {
+        console.error('❌ Error starting bot:', error.message);
+        process.exit(1);
+    }
+}
+
+// Graceful shutdown
 async function gracefulShutdown(signal) {
     console.log(`🛑 Received ${signal}, shutting down gracefully...`);
-    
+
     try {
-        // Stop polling
         if (bot.isPolling()) {
             await bot.stopPolling();
             console.log('✅ Bot polling stopped');
         }
-        
-        // Clean up lock file
+
         cleanupLock();
         console.log('✅ Cleanup completed');
-        
+
         process.exit(0);
     } catch (error) {
         console.error('❌ Error during shutdown:', error.message);
@@ -1104,7 +888,6 @@ process.on('unhandledRejection', (reason, promise) => {
     console.error('💥 Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
-// Initialize bot
 console.log('🤖 VPN Bot initializing...');
 console.log('📋 Available commands: /start /menu /help /plans /myplan /support /lang');
 
