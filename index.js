@@ -47,6 +47,7 @@ const plans = {
 // === Users ===
 const userState = new Map();
 const pendingProofs = new Map();
+const userPlans = new Map(); // Store user plans: userId -> { planKey, server, keys, purchaseDate, expiryDate, dataUsed }
 
 // === FUNCTIONS ===
 
@@ -159,32 +160,101 @@ function showPlansMenu(chatId, lang = 'en') {
 
 // Show user's current plan status
 function showMyPlan(chatId, lang = 'en') {
+    const userPlan = userPlans.get(chatId);
+    
     const texts = {
         en: {
             title: '👤 *My Plan Status*',
             noPlan: 'You don\'t have an active plan yet.\n\nClick "Choose Plan" to purchase a VPN plan.',
-            back: '🔙 Back to Menu'
+            plan: 'Plan',
+            server: 'Server',
+            dataLimit: 'Data Limit',
+            purchased: 'Purchased',
+            expires: 'Expires',
+            status: 'Status',
+            active: '✅ Active',
+            expired: '❌ Expired',
+            daysLeft: 'days left',
+            back: '🔙 Back to Menu',
+            buyMore: '📦 Buy More Plans'
         },
         cn: {
             title: '👤 *我的套餐状态*',
             noPlan: '您还没有激活的套餐。\n\n点击"选择套餐"来购买VPN套餐。',
-            back: '🔙 返回菜单'
+            plan: '套餐',
+            server: '服务器',
+            dataLimit: '流量限制',
+            purchased: '购买日期',
+            expires: '到期日期',
+            status: '状态',
+            active: '✅ 有效',
+            expired: '❌ 已过期',
+            daysLeft: '天剩余',
+            back: '🔙 返回菜单',
+            buyMore: '📦 购买更多套餐'
         },
         mm: {
             title: '👤 *ကျွန်ုပ်၏အစီအစဥ်အခြေအနေ*',
             noPlan: 'သင့်တွင် ရရှိနေသောအစီအစဥ်မရှိသေးပါ။\n\nVPN အစီအစဥ်ဝယ်ယူရန် "အစီအစဥ်ရွေးရန်" ကိုနှိပ်ပါ။',
-            back: '🔙 မီနူးသို့ပြန်'
+            plan: 'အစီအစဥ်',
+            server: 'ဆာဗာ',
+            dataLimit: 'ဒေတာကန့်သတ်ချက်',
+            purchased: 'ဝယ်ယူသည့်ရက်',
+            expires: 'သက်တမ်းကုန်ရက်',
+            status: 'အခြေအနေ',
+            active: '✅ အသုံးပြုနိုင်',
+            expired: '❌ သက်တမ်းကုန်',
+            daysLeft: 'ရက်ကျန်',
+            back: '🔙 မီနူးသို့ပြန်',
+            buyMore: '📦 အစီအစဥ်ထပ်ဝယ်'
         }
     };
 
     const text = texts[lang];
+    
+    if (!userPlan) {
+        const keyboard = {
+            inline_keyboard: [
+                [{ text: text.buyMore, callback_data: `choose_plans_${lang}` }],
+                [{ text: text.back, callback_data: `back_main_${lang}` }]
+            ]
+        };
+        
+        bot.sendMessage(chatId, `${text.title}\n\n${text.noPlan}`, {
+            reply_markup: keyboard,
+            parse_mode: 'Markdown'
+        });
+        return;
+    }
+
+    const plan = plans[userPlan.planKey];
+    const now = new Date();
+    const isActive = now < userPlan.expiryDate;
+    const daysLeft = Math.ceil((userPlan.expiryDate - now) / (1000 * 60 * 60 * 24));
+    
+    let serverText = '';
+    if (userPlan.server === 'us') {
+        serverText = '🇺🇸 US Server';
+    } else if (userPlan.server === 'sg') {
+        serverText = '🇸🇬 SG Server';
+    } else {
+        serverText = '🌐 Both Servers';
+    }
+
+    const statusText = isActive ? 
+        `${text.active} (${daysLeft} ${text.daysLeft})` : 
+        text.expired;
+
+    const planText = `${text.title}\n\n📦 *${text.plan}:* ${plan.name}\n🌍 *${text.server}:* ${serverText}\n💾 *${text.dataLimit}:* ${plan.gb}GB\n📅 *${text.purchased}:* ${userPlan.purchaseDate.toLocaleDateString()}\n⏰ *${text.expires}:* ${userPlan.expiryDate.toLocaleDateString()}\n📊 *${text.status}:* ${statusText}`;
+
     const keyboard = {
         inline_keyboard: [
+            [{ text: text.buyMore, callback_data: `choose_plans_${lang}` }],
             [{ text: text.back, callback_data: `back_main_${lang}` }]
         ]
     };
     
-    bot.sendMessage(chatId, `${text.title}\n\n${text.noPlan}`, {
+    bot.sendMessage(chatId, planText, {
         reply_markup: keyboard,
         parse_mode: 'Markdown'
     });
@@ -500,8 +570,21 @@ async function approvePayment(adminChatId, messageId, uid) {
 
         await sendVPNKeys(user, keys);
 
+        // Save user plan data
+        const purchaseDate = new Date();
+        const expiryDate = new Date(purchaseDate.getTime() + (plan.days * 24 * 60 * 60 * 1000));
+        
+        userPlans.set(user, {
+            planKey: proof.planKey,
+            server: proof.server,
+            keys: keys,
+            purchaseDate: purchaseDate,
+            expiryDate: expiryDate,
+            dataUsed: 0
+        });
+
         pendingProofs.delete(uid);
-        bot.editMessageText(`✅ *Payment Approved & Processed*\n\nPayment ID: ${uid}\nUser: ${user}\nKeys generated successfully!`, {
+        bot.editMessageText(`✅ *Payment Approved & Processed*\n\nPayment ID: ${uid}\nUser: ${user}\nPlan: ${plan.name}\nServer: ${proof.server}\nExpiry: ${expiryDate.toLocaleDateString()}\nKeys generated successfully!`, {
             chat_id: adminChatId,
             message_id: messageId,
             parse_mode: 'Markdown'
@@ -591,6 +674,47 @@ bot.onText(/\/servers/, (msg) => {
 // Support command
 bot.onText(/\/support/, (msg) => {
     showSupport(msg.chat.id);
+});
+
+// Admin command to view all users (admin only)
+bot.onText(/\/users/, (msg) => {
+    if (msg.from.id.toString() !== ADMIN_ID) {
+        bot.sendMessage(msg.chat.id, '❌ Access denied.');
+        return;
+    }
+
+    if (userPlans.size === 0) {
+        bot.sendMessage(msg.chat.id, '📊 *Admin Panel*\n\nNo users with active plans found.');
+        return;
+    }
+
+    let usersList = '📊 *All Users with Plans*\n\n';
+    let count = 0;
+    
+    for (const [userId, userPlan] of userPlans) {
+        count++;
+        const plan = plans[userPlan.planKey];
+        const isActive = new Date() < userPlan.expiryDate;
+        const status = isActive ? '✅ Active' : '❌ Expired';
+        const daysLeft = Math.ceil((userPlan.expiryDate - new Date()) / (1000 * 60 * 60 * 24));
+        
+        let serverText = '';
+        if (userPlan.server === 'us') {
+            serverText = '🇺🇸 US';
+        } else if (userPlan.server === 'sg') {
+            serverText = '🇸🇬 SG';
+        } else {
+            serverText = '🌐 Both';
+        }
+
+        usersList += `${count}. *User ${userId}*\n   📦 ${plan.name} | ${serverText} | ${plan.gb}GB\n   ${status}`;
+        if (isActive) {
+            usersList += ` (${daysLeft}d left)`;
+        }
+        usersList += '\n\n';
+    }
+
+    bot.sendMessage(msg.chat.id, usersList, { parse_mode: 'Markdown' });
 });
 
 // Callback query handler
