@@ -128,7 +128,7 @@ function showPlansMenu(chatId, lang = 'en') {
         },
         mm: {
             title: '🔐 📦 *သင့်အစီအစဥ်ကို ရွေးချယ်ပါ:*',
-            back: '🔙 မီနူးသို့ပြန်'
+            back: '🔙 Menu သို့ပြန်'
         }
     };
 
@@ -195,10 +195,10 @@ function showMyPlan(chatId, lang = 'en') {
             buyMore: '📦 购买更多套餐'
         },
         mm: {
-            title: '👤 *ကျွန်ုပ်၏အစီအစဥ်အခြေအနေ*',
-            noPlan: 'သင့်တွင် ရရှိနေသောအစီအစဥ်မရှိသေးပါ။\n\nVPN အစီအစဥ်ဝယ်ယူရန် "အစီအစဥ်ရွေးရန်" ကိုနှိပ်ပါ။',
-            plan: 'အစီအစဥ်',
-            server: 'ဆာဗာ',
+            title: '👤 *ကျွန်ုပ်၏ Plan အခြေအနေ*',
+            noPlan: 'သင့်တွင် ရရှိနေသော Plan မရှိသေးပါ။\n\nVPN Planဝယ်ယူရန် "အစီအစဥ်ရွေးရန်" ကိုနှိပ်ပါ။',
+            plan: 'Plan',
+            server: 'Server',
             dataLimit: 'ဒေတာကန့်သတ်ချက်',
             purchased: 'ဝယ်ယူသည့်ရက်',
             expires: 'သက်တမ်းကုန်ရက်',
@@ -206,8 +206,8 @@ function showMyPlan(chatId, lang = 'en') {
             active: '✅ အသုံးပြုနိုင်',
             expired: '❌ သက်တမ်းကုန်',
             daysLeft: 'ရက်ကျန်',
-            back: '🔙 မီနူးသို့ပြန်',
-            buyMore: '📦 အစီအစဥ်ထပ်ဝယ်'
+            back: '🔙 Menu သို့ပြန်',
+            buyMore: '📦 Package ထပ်ဝယ်'
         }
     };
 
