@@ -375,6 +375,9 @@ function showPaymentMethods(chatId, server, planKey, lang = 'en') {
                 { text: '🔵 True Money', callback_data: `pay_true_${server}_${planKey}_${lang}` },
                 { text: '📞 MPT Pay', callback_data: `pay_mpt_${server}_${planKey}_${lang}` }
             ],
+            [
+                { text: '🏦 Bank Transfer & Others', callback_data: `pay_bank_${server}_${planKey}_${lang}` }
+            ],
             [{ text: text.back, callback_data: `plan_${planKey}_${lang}` }]
         ]
     };
@@ -413,23 +416,42 @@ function showPaymentDetails(chatId, paymentMethod, server, planKey, lang = 'en')
         cb: { name: '🏦 CB Pay', number: '09555666777' },
         aya: { name: '💰 AYA Pay', number: '09444555666' },
         true: { name: '🔵 True Money', number: '09777888999' },
-        mpt: { name: '📞 MPT Pay', number: '09333444555' }
+        mpt: { name: '📞 MPT Pay', number: '09333444555' },
+        bank: { name: '🏦 Bank Transfer & Others', contact: true }
     };
 
     const selectedMethod = paymentMethods[paymentMethod];
-    let paymentInfo = `${selectedMethod.name}\n📱 *Number:* ${selectedMethod.number}`;
-    if (selectedMethod.holder) {
-        paymentInfo += `\n👤 *Account Name:* ${selectedMethod.holder}`;
+    let paymentInfo = '';
+    let paymentText = '';
+    
+    if (selectedMethod.contact) {
+        // Special handling for bank transfer and other methods
+        paymentText = `🏦 *Bank Transfer & Other Payment Methods*\n\n${serverText}\n📦 *Plan:* ${plan.name}\n${dataDetails}\n💰 *Amount:* ${plan.price} MMK\n\n💬 *Contact Admin for Payment Details:*\n📱 **Telegram:** @edenvault\\_88\n📧 **Email:** edenvault888@gmail.com\n\n📋 *Available Methods:*\n• Bank Transfer\n• International Transfer\n• Cryptocurrency\n• Other digital wallets\n\n🆔 *Reference:* ${uid.slice(-8)}\n\n*Please contact admin first before making payment*`;
+    } else {
+        paymentInfo = `${selectedMethod.name}\n📱 *Number:* ${selectedMethod.number}`;
+        if (selectedMethod.holder) {
+            paymentInfo += `\n👤 *Account Name:* ${selectedMethod.holder}`;
+        }
+        paymentText = `💳 *Payment Required*\n\n${serverText}\n📦 *Plan:* ${plan.name}\n${dataDetails}\n💰 *Amount:* ${plan.price} MMK\n\n${paymentInfo}\n🆔 *Reference:* ${uid.slice(-8)}\n\nAfter payment, upload your screenshot:`;
     }
     
-    const paymentText = `💳 *Payment Required*\n\n${serverText}\n📦 *Plan:* ${plan.name}\n${dataDetails}\n💰 *Amount:* ${plan.price} MMK\n\n${paymentInfo}\n🆔 *Reference:* ${uid.slice(-8)}\n\nAfter payment, upload your screenshot:`;
-    
-    const keyboard = {
-        inline_keyboard: [
-            [{ text: '📤 Upload Payment Proof', callback_data: `proof_${uid}` }],
-            [{ text: '🔙 Back to Payment Methods', callback_data: `srv_${server}_${planKey}_${lang}` }]
-        ]
-    };
+    let keyboard;
+    if (selectedMethod.contact) {
+        keyboard = {
+            inline_keyboard: [
+                [{ text: '💬 Contact Admin', url: 'https://t.me/edenvault_88' }],
+                [{ text: '📤 Upload Payment Proof', callback_data: `proof_${uid}` }],
+                [{ text: '🔙 Back to Payment Methods', callback_data: `srv_${server}_${planKey}_${lang}` }]
+            ]
+        };
+    } else {
+        keyboard = {
+            inline_keyboard: [
+                [{ text: '📤 Upload Payment Proof', callback_data: `proof_${uid}` }],
+                [{ text: '🔙 Back to Payment Methods', callback_data: `srv_${server}_${planKey}_${lang}` }]
+            ]
+        };
+    }
 
     bot.sendMessage(chatId, paymentText, {
         reply_markup: keyboard,
@@ -485,7 +507,8 @@ async function processPaymentProof(photoMsg, proof, uid) {
         cb: '🏦 CB Pay',
         aya: '💰 AYA Pay',
         true: '🔵 True Money',
-        mpt: '📞 MPT Pay'
+        mpt: '📞 MPT Pay',
+        bank: '🏦 Bank Transfer & Others'
     };
 
     const methodName = paymentMethods[proof.paymentMethod] || 'Unknown';
