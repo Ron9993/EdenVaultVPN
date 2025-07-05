@@ -450,13 +450,29 @@ function showPaymentDetails(chatId, paymentMethod, server, planKey, lang = 'en')
 // Handle payment proof upload
 function handlePaymentProof(chatId, uid) {
     const proof = pendingProofs.get(uid);
+    const userLang = userLanguages.get(chatId) || 'en';
+
+    const texts = {
+        en: {
+            expired: '❌ Payment session expired. Please start a new payment.',
+            upload: '📸 Please send your payment screenshot now.\n⏰ You have 5 minutes to upload.'
+        },
+        cn: {
+            expired: '❌ 支付会话已过期。请重新开始新的支付。',
+            upload: '📸 请现在发送您的付款截图。\n⏰ 您有5分钟时间上传。'
+        },
+        mm: {
+            expired: '❌ ငွေပေးချေမှု session သက်တမ်းကုန်သွားပါပြီ။ ငွေပေးချေမှုအသစ်စတင်ပါ။',
+            upload: '📸 သင့်ငွေပေးချေမှုဓာတ်ပုံကို ယခုပေးပို့ပါ။\n⏰ တင်ရန် ၅မိနစ်အချိန်ရှိပါသည်။'
+        }
+    };
 
     if (!proof) {
-        bot.sendMessage(chatId, '❌ Payment session expired. Please start a new payment.');
+        bot.sendMessage(chatId, texts[userLang].expired);
         return;
     }
 
-    bot.sendMessage(chatId, '📸 Please send your payment screenshot now.\n⏰ You have 5 minutes to upload.');
+    bot.sendMessage(chatId, texts[userLang].upload);
 
     const photoListener = async (photoMsg) => {
         if (photoMsg.chat.id !== chatId || !photoMsg.photo) return;
@@ -477,8 +493,15 @@ function handlePaymentProof(chatId, uid) {
 async function processPaymentProof(photoMsg, proof, uid) {
     const chatId = photoMsg.chat.id;
     const plan = plans[proof.planKey];
+    const userLang = userLanguages.get(chatId) || 'en';
     
-    bot.sendMessage(chatId, '✅ Payment proof received! Your payment is being reviewed by our team.\n⏱️ Approval usually takes 5-30 minutes.');
+    const confirmTexts = {
+        en: '✅ Payment proof received! Your payment is being reviewed by our team.\n⏱️ Approval usually takes 5-30 minutes.',
+        cn: '✅ 收到付款凭证！我们的团队正在审核您的付款。\n⏱️ 通常需要5-30分钟进行批准。',
+        mm: '✅ ငွေပေးချေမှုအထောက်အထားရရှိပါပြီ! ကျွန်ုပ်တို့အဖွဲ့မှ သင့်ငွေပေးချေမှုကို စစ်ဆေးနေပါသည်။\n⏱️ များသောအားဖြင့် ၅-၃၀ မိနစ်ကြာပါသည်။'
+    };
+    
+    bot.sendMessage(chatId, confirmTexts[userLang]);
 
     let serverInfo = '';
     if (proof.server === 'us') {
@@ -541,22 +564,49 @@ async function createVPNKey(server, userId, limitBytes) {
 
 // Send VPN keys to user
 async function sendVPNKeys(userId, keys) {
-    bot.sendMessage(userId, '🎉 *Payment Approved!*\n\nYour VPN access is ready! Download *Outline* app and use the keys below:', { parse_mode: 'Markdown' });
+    const userLang = userLanguages.get(userId) || 'en';
+    
+    const texts = {
+        en: {
+            approved: '🎉 *Payment Approved!*\n\nYour VPN access is ready! Download *Outline* app and use the keys below:',
+            access: 'Server Access',
+            dataLimit: 'Data Limit',
+            qrCaption: 'Server QR Code - Scan with Outline app',
+            instructions: '📱 *Setup Instructions:*\n\n1️⃣ Download *Outline* app from your app store\n2️⃣ Copy the access key or scan QR code\n3️⃣ Paste key in Outline app\n4️⃣ Connect and enjoy secure browsing!\n\n💬 *Support:* @edenvault\\_88\n📧 *Email:* edenvault888@gmail.com'
+        },
+        cn: {
+            approved: '🎉 *付款已批准！*\n\n您的VPN访问已准备就绪！下载 *Outline* 应用并使用下面的密钥：',
+            access: '服务器访问',
+            dataLimit: '流量限制',
+            qrCaption: '服务器二维码 - 使用Outline应用扫描',
+            instructions: '📱 *设置说明：*\n\n1️⃣ 从应用商店下载 *Outline* 应用\n2️⃣ 复制访问密钥或扫描二维码\n3️⃣ 在Outline应用中粘贴密钥\n4️⃣ 连接并享受安全浏览！\n\n💬 *支持：* @edenvault\\_88\n📧 *邮箱：* edenvault888@gmail.com'
+        },
+        mm: {
+            approved: '🎉 *ငွေပေးချေမှုအတည်ပြုပါပြီ！*\n\nသင့် VPN အသုံးပြုခွင့်အဆင်သင့်ဖြစ်ပါပြီ! *Outline* အက်ပ်ကို download လုပ်၍ အောက်ပါ keys များကိုအသုံးပြုပါ：',
+            access: 'ဆာဗာအသုံးပြုခွင့်',
+            dataLimit: 'ဒေတာကန့်သတ်ချက်',
+            qrCaption: 'ဆာဗာ QR ကုဒ် - Outline အက်ပ်ဖြင့် scan လုပ်ပါ',
+            instructions: '📱 *သတ်မှတ်ရန်လမ်းညွှန်များ：*\n\n1️⃣ သင့် app store မှ *Outline* အက်ပ်ကို download လုပ်ပါ\n2️⃣ access key ကို copy လုပ်ပါ သို့မဟုတ် QR code ကို scan လုပ်ပါ\n3️⃣ Outline အက်ပ်တွင် key ကို paste လုပ်ပါ\n4️⃣ ချိတ်ဆက်၍ လုံခြုံသော browsing ကို ပျော်ရွှင်ပါ!\n\n💬 *အကူအညီ：* @edenvault\\_88\n📧 *အီးမေးလ်：* edenvault888@gmail.com'
+        }
+    };
+    
+    const text = texts[userLang];
+    
+    bot.sendMessage(userId, text.approved, { parse_mode: 'Markdown' });
 
     // Send each key with QR code
     for (const key of keys) {
-        bot.sendMessage(userId, `🔑 *${key.server} Server Access*\n💾 *Data Limit:* ${key.gb}GB\n\n\`${key.url}\``, { parse_mode: 'Markdown' });
+        bot.sendMessage(userId, `🔑 *${key.server} ${text.access}*\n💾 *${text.dataLimit}:* ${key.gb}GB\n\n\`${key.url}\``, { parse_mode: 'Markdown' });
 
         // Generate and send QR code
         const qrBuffer = await QRCode.toBuffer(key.url);
         bot.sendPhoto(userId, qrBuffer, { 
-            caption: `${key.server === 'US' ? '🇺🇸' : '🇸🇬'} ${key.server} Server QR Code - Scan with Outline app` 
+            caption: `${key.server === 'US' ? '🇺🇸' : '🇸🇬'} ${key.server} ${text.qrCaption}` 
         });
     }
 
     // Send setup instructions
-    const instructions = '📱 *Setup Instructions:*\n\n1️⃣ Download *Outline* app from your app store\n2️⃣ Copy the access key or scan QR code\n3️⃣ Paste key in Outline app\n4️⃣ Connect and enjoy secure browsing!\n\n💬 *Support:* @edenvault\\_88\n📧 *Email:* edenvault888@gmail.com';
-    bot.sendMessage(userId, instructions, { parse_mode: 'Markdown' });
+    bot.sendMessage(userId, text.instructions, { parse_mode: 'Markdown' });
 }
 
 // Approve payment and generate keys
@@ -618,7 +668,14 @@ function rejectPayment(adminChatId, messageId, uid) {
         return;
     }
 
-    bot.sendMessage(proof.id, '❌ *Payment Rejected*\n\nYour payment could not be verified. Please contact support for assistance.\n\n💬 *Support:* @edenvault\\_88', { parse_mode: 'Markdown' });
+    const userLang = userLanguages.get(proof.id) || 'en';
+    const rejectionTexts = {
+        en: '❌ *Payment Rejected*\n\nYour payment could not be verified. Please contact support for assistance.\n\n💬 *Support:* @edenvault\\_88',
+        cn: '❌ *付款被拒绝*\n\n您的付款无法验证。请联系客服寻求帮助。\n\n💬 *客服：* @edenvault\\_88',
+        mm: '❌ *ငွေပေးချေမှုငြင်းပယ်ခံရပါသည်*\n\nသင့်ငွေပေးချေမှုကို အတည်ပြု၍မရပါ။ အကူအညီအတွက် support ကိုဆက်သွယ်ပါ။\n\n💬 *အကူအညီ：* @edenvault\\_88'
+    };
+
+    bot.sendMessage(proof.id, rejectionTexts[userLang], { parse_mode: 'Markdown' });
 
     pendingProofs.delete(uid);
     bot.editMessageText(`❌ *Payment Rejected*\n\nPayment ID: ${uid}\nUser: ${proof.id}\nReason: Manual rejection by admin`, {
@@ -690,9 +747,17 @@ bot.onText(/\/start/, (msg) => {
 
 // Help command - comprehensive guide
 bot.onText(/\/help/, (msg) => {
-    const helpText = `🔐 *EdenVaultVPN - Command Guide*\n\n📱 *Available Commands:*\n\n/start - Start the bot and select language\n/menu - Open main menu\n/plans - View all VPN plans\n/help - Show this help guide\n/support - Contact support\n/status - Check your plan status\n/pricing - View pricing details\n/servers - Server locations info\n\n📋 *Quick Start Guide:*\n1️⃣ Use /plans to see available packages\n2️⃣ Choose your preferred plan\n3️⃣ Select server location (US/SG/Both)\n4️⃣ Choose payment method\n5️⃣ Pay and upload screenshot\n6️⃣ Get your VPN keys instantly!\n\n🌍 *Server Locations:*\n🇺🇸 US Server - Americas & Europe\n🇸🇬 SG Server - Asia Pacific\n🌐 Both Servers - Global coverage\n\n💬 *Need help?* Use /support or contact @edenvault\\_88`;
+    const userLang = userLanguages.get(msg.chat.id) || 'en';
     
-    bot.sendMessage(msg.chat.id, helpText, { parse_mode: 'Markdown' });
+    const helpTexts = {
+        en: `🔐 *EdenVaultVPN - Command Guide*\n\n📱 *Available Commands:*\n\n/start - Start the bot and select language\n/menu - Open main menu\n/plans - View all VPN plans\n/help - Show this help guide\n/support - Contact support\n/status - Check your plan status\n/pricing - View pricing details\n/servers - Server locations info\n\n📋 *Quick Start Guide:*\n1️⃣ Use /plans to see available packages\n2️⃣ Choose your preferred plan\n3️⃣ Select server location (US/SG/Both)\n4️⃣ Choose payment method\n5️⃣ Pay and upload screenshot\n6️⃣ Get your VPN keys instantly!\n\n🌍 *Server Locations:*\n🇺🇸 US Server - Americas & Europe\n🇸🇬 SG Server - Asia Pacific\n🌐 Both Servers - Global coverage\n\n💬 *Need help?* Use /support or contact @edenvault\\_88`,
+        
+        cn: `🔐 *EdenVaultVPN - 命令指南*\n\n📱 *可用命令：*\n\n/start - 启动机器人并选择语言\n/menu - 打开主菜单\n/plans - 查看所有VPN套餐\n/help - 显示此帮助指南\n/support - 联系客服\n/status - 检查您的套餐状态\n/pricing - 查看价格详情\n/servers - 服务器位置信息\n\n📋 *快速入门指南：*\n1️⃣ 使用 /plans 查看可用套餐\n2️⃣ 选择您喜欢的套餐\n3️⃣ 选择服务器位置 (美国/新加坡/双服务器)\n4️⃣ 选择支付方式\n5️⃣ 付款并上传截图\n6️⃣ 立即获取您的VPN密钥!\n\n🌍 *服务器位置：*\n🇺🇸 美国服务器 - 美洲和欧洲\n🇸🇬 新加坡服务器 - 亚太地区\n🌐 双服务器 - 全球覆盖\n\n💬 *需要帮助？* 使用 /support 或联系 @edenvault\\_88`,
+        
+        mm: `🔐 *EdenVaultVPN - လမ်းညွှန်*\n\n📱 *အသုံးပြုနိုင်သောလမ်းညွှန်များ：*\n\n/start - ဘော့စတင်၍ ဘာသာစကားရွေးချယ်ရန်\n/menu - ပင်မမီနူး\n/plans - VPN အစီအစဥ်များအားလုံးကြည့်ရန်\n/help - ဤအကူအညီလမ်းညွှန်ပြရန်\n/support - အကူအညီဆက်သွယ်ရန်\n/status - သင့်အစီအစဥ်အခြေအနေစစ်ရန်\n/pricing - စျေးနှုန်းအသေးစိတ်ကြည့်ရန်\n/servers - ဆာဗာတည်နေရာအချက်အလက်\n\n📋 *မြန်ဆန်သောစတင်လမ်းညွှန်：*\n1️⃣ /plans သုံး၍ရရှိနိုင်သော package များကြည့်ပါ\n2️⃣ သင်နှစ်သက်သောအစီအစဥ်ကိုရွေးပါ\n3️⃣ ဆာဗာတည်နေရာရွေးချယ်ပါ (US/SG/နှစ်ခုလုံး)\n4️⃣ ငွေပေးချေမှုနည်းလမ်းရွေးပါ\n5️⃣ ငွေပေးချေ၍ ဓာတ်ပုံတင်ပါ\n6️⃣ သင့်VPN keys များကို ချက်ချင်းရယူပါ!\n\n🌍 *ဆာဗာတည်နေရာများ：*\n🇺🇸 US ဆာဗာ - အမေရိကတိုက်နှင့် ဥရောပ\n🇸🇬 SG ဆာဗာ - အာရှပစိဖိတ်\n🌐 ဆာဗာနှစ်ခုလုံး - ကမ္ဘာ့ကွန်ယက်\n\n💬 *အကူအညီလိုပါသလား？* /support သုံးပါ သို့မဟုတ် @edenvault\\_88 ကိုဆက်သွယ်ပါ`
+    };
+    
+    bot.sendMessage(msg.chat.id, helpTexts[userLang], { parse_mode: 'Markdown' });
 });
 
 // Menu command - direct access to main menu
@@ -715,16 +780,32 @@ bot.onText(/\/status/, (msg) => {
 
 // Pricing command - detailed pricing info
 bot.onText(/\/pricing/, (msg) => {
-    const pricingText = `💰 *EdenVaultVPN Pricing*\n\n🟢 **Mini Vault** - Perfect for light users\n• 100GB • 30 Days - **3,000 MMK**\n• 100GB • 90 Days - **7,000 MMK**\n\n🔵 **Power Vault** - Great for regular users\n• 300GB • 30 Days - **6,000 MMK**\n• 300GB • 90 Days - **13,000 MMK**\n\n🔴 **Ultra Vault** - Best value! *(Most Popular)*\n• 500GB • 30 Days - **8,000 MMK**\n• 500GB • 90 Days - **17,000 MMK**\n\n💳 *Payment Methods:*\n📱 KPay • 🌊 Wave Pay • 🏦 Bank Transfer & Others\n\n🌍 *Server Options:*\n🇺🇸 US Server (Full data)\n🇸🇬 SG Server (Full data)\n🌐 Both Servers (Split 50/50)\n\n📱 Use /plans to purchase now!`;
+    const userLang = userLanguages.get(msg.chat.id) || 'en';
     
-    bot.sendMessage(msg.chat.id, pricingText, { parse_mode: 'Markdown' });
+    const pricingTexts = {
+        en: `💰 *EdenVaultVPN Pricing*\n\n🟢 **Mini Vault** - Perfect for light users\n• 100GB • 30 Days - **3,000 MMK**\n• 100GB • 90 Days - **7,000 MMK**\n\n🔵 **Power Vault** - Great for regular users\n• 300GB • 30 Days - **6,000 MMK**\n• 300GB • 90 Days - **13,000 MMK**\n\n🔴 **Ultra Vault** - Best value! *(Most Popular)*\n• 500GB • 30 Days - **8,000 MMK**\n• 500GB • 90 Days - **17,000 MMK**\n\n💳 *Payment Methods:*\n📱 KPay • 🌊 Wave Pay • 🏦 Bank Transfer & Others\n\n🌍 *Server Options:*\n🇺🇸 US Server (Full data)\n🇸🇬 SG Server (Full data)\n🌐 Both Servers (Split 50/50)\n\n📱 Use /plans to purchase now!`,
+        
+        cn: `💰 *EdenVaultVPN 价格*\n\n🟢 **Mini Vault** - 适合轻度用户\n• 100GB • 30天 - **3,000 MMK**\n• 100GB • 90天 - **7,000 MMK**\n\n🔵 **Power Vault** - 适合常规用户\n• 300GB • 30天 - **6,000 MMK**\n• 300GB • 90天 - **13,000 MMK**\n\n🔴 **Ultra Vault** - 最超值! *(最受欢迎)*\n• 500GB • 30天 - **8,000 MMK**\n• 500GB • 90天 - **17,000 MMK**\n\n💳 *支付方式：*\n📱 KPay • 🌊 Wave Pay • 🏦 银行转账及其他\n\n🌍 *服务器选项：*\n🇺🇸 美国服务器 (完整流量)\n🇸🇬 新加坡服务器 (完整流量)\n🌐 双服务器 (流量分割 50/50)\n\n📱 使用 /plans 立即购买!`,
+        
+        mm: `💰 *EdenVaultVPN စျေးနှုန်း*\n\n🟢 **Mini Vault** - သေးသေးလေးအသုံးပြုသူများအတွက်\n• 100GB • 30 ရက် - **3,000 MMK**\n• 100GB • 90 ရက် - **7,000 MMK**\n\n🔵 **Power Vault** - ပုံမှန်အသုံးပြုသူများအတွက်\n• 300GB • 30 ရက် - **6,000 MMK**\n• 300GB • 90 ရက် - **13,000 MMK**\n\n🔴 **Ultra Vault** - အကောင်းဆုံးတန်ဖိုး! *(အရေပြားဆုံး)*\n• 500GB • 30 ရက် - **8,000 MMK**\n• 500GB • 90 ရက် - **17,000 MMK**\n\n💳 *ငွေပေးချေမှုနည်းလမ်းများ：*\n📱 KPay • 🌊 Wave Pay • 🏦 ဘဏ်လွှဲနှင့် အခြားများ\n\n🌍 *ဆာဗာရွေးချယ်စရာများ：*\n🇺🇸 US ဆာဗာ (ဒေတာအပြည့်)\n🇸🇬 SG ဆာဗာ (ဒေတာအပြည့်)\n🌐 ဆာဗာနှစ်ခုလုံး (ဒေတာခွဲဝေ 50/50)\n\n📱 ယခုပင်ဝယ်ယူရန် /plans သုံးပါ!`
+    };
+    
+    bot.sendMessage(msg.chat.id, pricingTexts[userLang], { parse_mode: 'Markdown' });
 });
 
 // Servers command - server information
 bot.onText(/\/servers/, (msg) => {
-    const serversText = `🌍 *Server Locations & Features*\n\n🇺🇸 **US Server**\n• Location: United States\n• Best for: Americas, Europe\n• Speed: Ultra-fast\n• Streaming: Netflix, Hulu, HBO\n\n🇸🇬 **SG Server**\n• Location: Singapore\n• Best for: Asia Pacific\n• Speed: Lightning fast\n• Streaming: Netflix, Disney+\n\n🌐 **Both Servers (Recommended)**\n• Get access to both locations\n• Data split equally (e.g., 250GB each for 500GB plan)\n• Maximum flexibility\n• Best global coverage\n\n⚡ *All servers offer:*\n✅ 24/7 uptime\n✅ Military-grade encryption\n✅ No logs policy\n✅ Unlimited device connections\n✅ High-speed streaming\n\n📱 Ready to start? Use /plans`;
+    const userLang = userLanguages.get(msg.chat.id) || 'en';
     
-    bot.sendMessage(msg.chat.id, serversText, { parse_mode: 'Markdown' });
+    const serversTexts = {
+        en: `🌍 *Server Locations & Features*\n\n🇺🇸 **US Server**\n• Location: United States\n• Best for: Americas, Europe\n• Speed: Ultra-fast\n• Streaming: Netflix, Hulu, HBO\n\n🇸🇬 **SG Server**\n• Location: Singapore\n• Best for: Asia Pacific\n• Speed: Lightning fast\n• Streaming: Netflix, Disney+\n\n🌐 **Both Servers (Recommended)**\n• Get access to both locations\n• Data split equally (e.g., 250GB each for 500GB plan)\n• Maximum flexibility\n• Best global coverage\n\n⚡ *All servers offer:*\n✅ 24/7 uptime\n✅ Military-grade encryption\n✅ No logs policy\n✅ Unlimited device connections\n✅ High-speed streaming\n\n📱 Ready to start? Use /plans`,
+        
+        cn: `🌍 *服务器位置和功能*\n\n🇺🇸 **美国服务器**\n• 位置：美国\n• 最适合：美洲、欧洲\n• 速度：超快\n• 流媒体：Netflix、Hulu、HBO\n\n🇸🇬 **新加坡服务器**\n• 位置：新加坡\n• 最适合：亚太地区\n• 速度：闪电般快速\n• 流媒体：Netflix、Disney+\n\n🌐 **双服务器 (推荐)**\n• 可访问两个位置\n• 流量平均分配 (例如500GB套餐各250GB)\n• 最大灵活性\n• 最佳全球覆盖\n\n⚡ *所有服务器提供：*\n✅ 24/7 正常运行时间\n✅ 军事级加密\n✅ 无日志政策\n✅ 无限设备连接\n✅ 高速流媒体\n\n📱 准备开始了吗？使用 /plans`,
+        
+        mm: `🌍 *ဆာဗာတည်နေရာများနှင့် လုပ်ဆောင်ချက်များ*\n\n🇺🇸 **US ဆာဗာ**\n• တည်နေရာ： အမေရိကန်\n• အကောင်းဆုံးအတွက်： အမေရိကတိုက်၊ ဥရောပ\n• အမြန်နှုန်း： အလွန်မြန်\n• Streaming: Netflix, Hulu, HBO\n\n🇸🇬 **SG ဆာဗာ**\n• တည်နေရာ： စင်္ကာပူ\n• အကောင်းဆုံးအတွက်： အာရှပစိဖိတ်\n• အမြန်နှုန်း： လျှပ်စီးကြောင်းလိုမြန်\n• Streaming: Netflix, Disney+\n\n🌐 **ဆာဗာနှစ်ခုလုံး (အကြံပြုထားသော)**\n• နေရာနှစ်ခုလုံးကို အသုံးပြုနိုင်\n• ဒေတာညီမျှခွဲဝေ (ဥပမာ 500GB အစီအစဥ်တွင် တစ်ခုစီ 250GB)\n• အများဆုံးပြောင်းလွယ်ပြင်လွယ်မှု\n• အကောင်းဆုံးကမ္ဘာ့လွှမ်းခြုံမှု\n\n⚡ *ဆာဗာအားလုံးပေးပို့သည်：*\n✅ 24/7 အလုပ်လုပ်ချိန်\n✅ စစ်တပ်အဆင့် encryption\n✅ မှတ်တမ်းမရှိ မူဝါဒ\n✅ ကန့်သတ်မရှိ စက်ပစ္စည်းချိတ်ဆက်မှု\n✅ အမြန်နှုန်းမြင့် streaming\n\n📱 စတင်ရန်အဆင်သင့်ဖြစ်ပြီလား？ /plans သုံးပါ`
+    };
+    
+    bot.sendMessage(msg.chat.id, serversTexts[userLang], { parse_mode: 'Markdown' });
 });
 
 // Support command
@@ -736,7 +817,13 @@ bot.onText(/\/support/, (msg) => {
 // Admin command to view all users (admin only)
 bot.onText(/\/users/, (msg) => {
     if (msg.from.id.toString() !== ADMIN_ID) {
-        bot.sendMessage(msg.chat.id, '❌ Access denied.');
+        const userLang = userLanguages.get(msg.chat.id) || 'en';
+        const deniedTexts = {
+            en: '❌ Access denied.',
+            cn: '❌ 访问被拒绝。',
+            mm: '❌ အသုံးပြုခွင့်မရှိပါ။'
+        };
+        bot.sendMessage(msg.chat.id, deniedTexts[userLang]);
         return;
     }
 
