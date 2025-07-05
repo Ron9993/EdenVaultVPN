@@ -368,14 +368,6 @@ function showPaymentMethods(chatId, server, planKey, lang = 'en') {
                 { text: '🌊 Wave Pay', callback_data: `pay_wave_${server}_${planKey}_${lang}` }
             ],
             [
-                { text: '🏦 CB Pay', callback_data: `pay_cb_${server}_${planKey}_${lang}` },
-                { text: '💰 AYA Pay', callback_data: `pay_aya_${server}_${planKey}_${lang}` }
-            ],
-            [
-                { text: '🔵 True Money', callback_data: `pay_true_${server}_${planKey}_${lang}` },
-                { text: '📞 MPT Pay', callback_data: `pay_mpt_${server}_${planKey}_${lang}` }
-            ],
-            [
                 { text: '🏦 Bank Transfer & Others', callback_data: `pay_bank_${server}_${planKey}_${lang}` }
             ],
             [{ text: text.back, callback_data: `plan_${planKey}_${lang}` }]
@@ -413,10 +405,6 @@ function showPaymentDetails(chatId, paymentMethod, server, planKey, lang = 'en')
     const paymentMethods = {
         kpay: { name: '📱 KPay', number: '09760301586', holder: 'Win Thuzar' },
         wave: { name: '🌊 Wave Pay', number: '09760301586', holder: 'Zar Zar Phoo' },
-        cb: { name: '🏦 CB Pay', number: '09555666777' },
-        aya: { name: '💰 AYA Pay', number: '09444555666' },
-        true: { name: '🔵 True Money', number: '09777888999' },
-        mpt: { name: '📞 MPT Pay', number: '09333444555' },
         bank: { name: '🏦 Bank Transfer & Others', contact: true }
     };
 
@@ -504,10 +492,6 @@ async function processPaymentProof(photoMsg, proof, uid) {
     const paymentMethods = {
         kpay: '📱 KPay',
         wave: '🌊 Wave Pay',
-        cb: '🏦 CB Pay',
-        aya: '💰 AYA Pay',
-        true: '🔵 True Money',
-        mpt: '📞 MPT Pay',
         bank: '🏦 Bank Transfer & Others'
     };
 
@@ -731,7 +715,7 @@ bot.onText(/\/status/, (msg) => {
 
 // Pricing command - detailed pricing info
 bot.onText(/\/pricing/, (msg) => {
-    const pricingText = `💰 *EdenVaultVPN Pricing*\n\n🟢 **Mini Vault** - Perfect for light users\n• 100GB • 30 Days - **3,000 MMK**\n• 100GB • 90 Days - **7,000 MMK**\n\n🔵 **Power Vault** - Great for regular users\n• 300GB • 30 Days - **6,000 MMK**\n• 300GB • 90 Days - **13,000 MMK**\n\n🔴 **Ultra Vault** - Best value! *(Most Popular)*\n• 500GB • 30 Days - **8,000 MMK**\n• 500GB • 90 Days - **17,000 MMK**\n\n💳 *Payment Methods:*\n📱 KPay • 🌊 Wave Pay • 🏦 CB Pay\n💰 AYA Pay • 🔵 True Money • 📞 MPT Pay\n\n🌍 *Server Options:*\n🇺🇸 US Server (Full data)\n🇸🇬 SG Server (Full data)\n🌐 Both Servers (Split 50/50)\n\n📱 Use /plans to purchase now!`;
+    const pricingText = `💰 *EdenVaultVPN Pricing*\n\n🟢 **Mini Vault** - Perfect for light users\n• 100GB • 30 Days - **3,000 MMK**\n• 100GB • 90 Days - **7,000 MMK**\n\n🔵 **Power Vault** - Great for regular users\n• 300GB • 30 Days - **6,000 MMK**\n• 300GB • 90 Days - **13,000 MMK**\n\n🔴 **Ultra Vault** - Best value! *(Most Popular)*\n• 500GB • 30 Days - **8,000 MMK**\n• 500GB • 90 Days - **17,000 MMK**\n\n💳 *Payment Methods:*\n📱 KPay • 🌊 Wave Pay • 🏦 Bank Transfer & Others\n\n🌍 *Server Options:*\n🇺🇸 US Server (Full data)\n🇸🇬 SG Server (Full data)\n🌐 Both Servers (Split 50/50)\n\n📱 Use /plans to purchase now!`;
     
     bot.sendMessage(msg.chat.id, pricingText, { parse_mode: 'Markdown' });
 });
