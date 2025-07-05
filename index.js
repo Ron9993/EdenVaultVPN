@@ -408,8 +408,8 @@ function showPaymentDetails(chatId, paymentMethod, server, planKey, lang = 'en')
 
     // Payment method details
     const paymentMethods = {
-        kpay: { name: '📱 KPay', number: '09123456789' },
-        wave: { name: '🌊 Wave Pay', number: '09876543210' },
+        kpay: { name: '📱 KPay', number: '09760301586', holder: 'Win Thuzar' },
+        wave: { name: '🌊 Wave Pay', number: '09760301586', holder: 'Zar Zar Phoo' },
         cb: { name: '🏦 CB Pay', number: '09555666777' },
         aya: { name: '💰 AYA Pay', number: '09444555666' },
         true: { name: '🔵 True Money', number: '09777888999' },
@@ -417,7 +417,12 @@ function showPaymentDetails(chatId, paymentMethod, server, planKey, lang = 'en')
     };
 
     const selectedMethod = paymentMethods[paymentMethod];
-    const paymentText = `💳 *Payment Required*\n\n${serverText}\n📦 *Plan:* ${plan.name}\n${dataDetails}\n💰 *Amount:* ${plan.price} MMK\n\n${selectedMethod.name}\n📱 *Number:* ${selectedMethod.number}\n🆔 *Reference:* ${uid.slice(-8)}\n\nAfter payment, upload your screenshot:`;
+    let paymentInfo = `${selectedMethod.name}\n📱 *Number:* ${selectedMethod.number}`;
+    if (selectedMethod.holder) {
+        paymentInfo += `\n👤 *Account Name:* ${selectedMethod.holder}`;
+    }
+    
+    const paymentText = `💳 *Payment Required*\n\n${serverText}\n📦 *Plan:* ${plan.name}\n${dataDetails}\n💰 *Amount:* ${plan.price} MMK\n\n${paymentInfo}\n🆔 *Reference:* ${uid.slice(-8)}\n\nAfter payment, upload your screenshot:`;
     
     const keyboard = {
         inline_keyboard: [
